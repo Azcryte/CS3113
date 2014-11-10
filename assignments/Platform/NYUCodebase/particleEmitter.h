@@ -18,15 +18,16 @@ float lerp(float v0, float v1, float t) {
 
 class Particle {
 public:
-	Particle(Vector pos, Vector vel, float t);
+	//Particle(Vector pos, Vector vel, float t);
 
 	Vector position;
 	Vector velocity;
 	float lifetime;
+	bool active;
 };
 
-Particle::Particle(Vector pos, Vector vel, float t)
-	: position(pos), velocity(vel), lifetime(t) {}
+//Particle::Particle(Vector pos, Vector vel, float t)
+//	: position(pos), velocity(vel), lifetime(t) {}
 
 class ParticleEmitter {
 public:
@@ -36,17 +37,19 @@ public:
 
 	void Update(float elapsed);
 	void Render();
+	void reset();
 
 	bool active;
 	Vector position;
 	Vector gravity;
 	Vector velocity;
+	Vector velocityDeviation;
 	float maxLifetime;
 	
 	float startSize;
 	float endSize;
 	
-	vector<Particle*> particles;
+	vector<Particle> particles;
 };
 
 ParticleEmitter::ParticleEmitter() {
@@ -61,6 +64,10 @@ ParticleEmitter::ParticleEmitter() {
 	particles.clear();
 }
 
+ParticleEmitter::~ParticleEmitter() {
+
+}
+
 ParticleEmitter::ParticleEmitter(Vector pos, Vector grav, Vector vel, float t, unsigned int particleCount) {
 	active = false;
 	position = pos;
@@ -72,72 +79,87 @@ ParticleEmitter::ParticleEmitter(Vector pos, Vector grav, Vector vel, float t, u
 
 	particles.clear();
 	for (size_t i = 0; i < particleCount; i++) {
-		Particle* temp = new Particle(position, Vector(0.0f, 0.0f), randomFloat(0.0f, t));
+		Particle temp;
+		//temp.lifetime = 0.0f;
+		temp.lifetime = randomFloat(0.0f, t);
+		temp.position = position;
+		temp.active = true;
 		particles.push_back(temp);
 	}
 }
 
 void ParticleEmitter::Update(float elapsed) {
 	for (size_t i = 0; i < particles.size(); i++) {
-		particles[i]->velocity.x += gravity.x;
-		particles[i]->velocity.y += gravity.y;
+		//particles[i].velocity.x += gravity.x;
+		//particles[i].velocity.y += gravity.y;
+		particles[i].velocity = particles[i].velocity + gravity;
+		particles[i].position = particles[i].position + particles[i].velocity * elapsed;
+		particles[i].lifetime += elapsed;
 
-		particles[i]->position.x += particles[i]->velocity.x;
-		particles[i]->position.y += particles[i]->velocity.y;
+		//particles[i].position.x += particles[i].velocity.x;
+		//particles[i].position.y += particles[i].velocity.y;
 
-		particles[i]->lifetime += elapsed;
-		if (particles[i]->lifetime > maxLifetime) {
-			particles[i]->velocity = velocity;
-			particles[i]->position = position;
-			particles[i]->lifetime = 0.0f;
+		//particles[i].lifetime += elapsed;
+		if (particles[i].lifetime > maxLifetime) {
+			particles[i].velocity = velocity + Vector(randomFloat(-velocityDeviation.x, velocityDeviation.x),
+				randomFloat(-velocityDeviation.y, velocityDeviation.y));
+			particles[i].position = position;
+			particles[i].lifetime = 0.0f;
+			particles[i].active = active;
 		}
 	}
 }
 
 void ParticleEmitter::Render() {
-	if (active) {
+	//if (active) {
 
-		vector<float> particleVertices;
-		vector<float> particleUVs;
-		vector<unsigned int> indices;
+	vector<float> particleVertices;
 
-		//for (size_t i = 0; i < particles.size(); i++) {
-		//	particleVertices.push_back(particles[i]->position.x);
-		//	particleVertices.push_back(particles[i]->position.y);
-		//}
-		//glVertexPointer(2, GL_FLOAT, 0, particleVertices.data());
-		//glEnableClientState(GL_VERTEX_ARRAY);
-
-		//glDrawArrays(GL_POINTS, 0, particleVertices.size() / 2);
-		//}
-		//glLoadIdentity();
-
-		for (int i = 0; i < particles.size(); i++) {
-
-			float relativeLifetime = (particles[i]->lifetime / maxLifetime);
-			float size = lerp(startSize, endSize, relativeLifetime);// +particles[i]->sizeDeviation;
-			unsigned int vertexOffset = particleVertices.size() / 2;
-			particleVertices.insert(particleVertices.end(), {
-				particles[i]->position.x - size, particles[i]->position.y + size,
-				particles[i]->position.x - size, particles[i]->position.y - size,
-				particles[i]->position.x + size, particles[i]->position.y - size,
-				particles[i]->position.x + size, particles[i]->position.y + size
-			});
-
-			particleUVs.insert(particleUVs.end(), {
-				0.0f, 0.0f,
-				0.0f, 1.0f,
-				1.0f, 1.0f,
-				1.0f, 0.0f
-			});
-
-			indices.insert(indices.end(), { vertexOffset + 0, vertexOffset + 1, 
-				vertexOffset + 2, vertexOffset + 0, 
-				vertexOffset + 2, vertexOffset + 3 });
+	for (size_t i = 0; i < particles.size(); i++) {
+		if (particles[i].active) {
+			particleVertices.push_back(particles[i].position.x);
+			particleVertices.push_back(particles[i].position.y);
 		}
-		glTexCoordPointer(2, GL_FLOAT, 0, particleUVs.data());
-		glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-		glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, indices.data());
 	}
+	glVertexPointer(2, GL_FLOAT, 0, particleVertices.data());
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glDrawArrays(GL_POINTS, 0, particleVertices.size() / 2);
+		//vector<float> particleVertices;
+		//vector<float> particleUVs;
+		//vector<unsigned int> indices;
+		//
+		//for (int i = 0; i < particles.size(); i++) {
+		//
+		//	float relativeLifetime = (particles[i].lifetime / maxLifetime);
+		//	float size = lerp(startSize, endSize, relativeLifetime);// +particles[i].sizeDeviation;
+		//	unsigned int vertexOffset = particleVertices.size() / 2;
+		//	particleVertices.insert(particleVertices.end(), {
+		//		particles[i].position.x - size, particles[i].position.y + size,
+		//		particles[i].position.x - size, particles[i].position.y - size,
+		//		particles[i].position.x + size, particles[i].position.y - size,
+		//		particles[i].position.x + size, particles[i].position.y + size
+		//	});
+		//
+		//	particleUVs.insert(particleUVs.end(), {
+		//		0.0f, 0.0f,
+		//		0.0f, 1.0f,
+		//		1.0f, 1.0f,
+		//		1.0f, 0.0f
+		//	});
+		//
+		//	indices.insert(indices.end(), { vertexOffset + 0, vertexOffset + 1, 
+		//		vertexOffset + 2, vertexOffset + 0, 
+		//		vertexOffset + 2, vertexOffset + 3 });
+		//}
+		//glTexCoordPointer(2, GL_FLOAT, 0, particleUVs.data());
+		//glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		//glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, indices.data());
+	//}
 
+}
+
+void ParticleEmitter::reset() {
+	for (size_t i = 0; i < particles.size(); i++) {
+		particles[i].position = position;
+	}
 }

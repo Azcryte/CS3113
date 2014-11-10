@@ -5,19 +5,11 @@
 #include <vector>
 #include "sheetSprite.h"
 #include "matrix.h"
+#include "particleEmitter.h"
 using namespace std;
 
 //#define FIXED_TIMESTEP 0.0166666f
 //#define MAX_TIMESTEPS 6
-
-float lerp(float v0, float v1, float t) {
-	return (1.0f - t)*v0 + t*v1;
-}
-
-float randomFloat(float min, float max){
-	float random = ((float)rand()) / (float)RAND_MAX;
-	return (random*(max - min)) + min;
-}
 
 class Entity{
 private:
@@ -56,8 +48,10 @@ public:
 	float rotation;
 	float speed;
 
+	//Vector velocity;
 	float vel_x;
 	float vel_y;
+	//Vector acceleration;
 	float acc_x;
 	float acc_y;
 	float fric_x;
@@ -93,6 +87,7 @@ Entity::Entity() {
 	rotation = 0.0f;
 	speed = 1.0f;
 
+	//velocity = Vector(0.0f, 0.0f);
 	vel_x = 0.0f;
 	vel_y = 0.0f;
 	acc_x = 0.0f;
@@ -119,7 +114,7 @@ void Entity::walkRight() {
 		vel_x = 0.0f;
 	}
 	if (vel_x < 2.0f) {
-		acc_x = 5.0f;
+		acc_x = 5.0f * speed;
 	}
 }
 
@@ -130,7 +125,7 @@ void Entity::walkLeft() {
 		vel_x = 0.0f;
 	}
 	if (vel_x > -2.0f) {
-		acc_x = -5.0f;
+		acc_x = -5.0f * speed;
 	}
 }
 

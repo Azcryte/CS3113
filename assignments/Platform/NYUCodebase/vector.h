@@ -9,6 +9,9 @@ public:
 	float length();
 	void normalize();
 
+	Vector operator + (const Vector& rhs);
+	Vector operator * (float rhs);
+
 	float x;
 	float y;
 	float z;
@@ -27,4 +30,24 @@ void Vector::normalize() {
 	x /= l;
 	y /= l;
 	z /= l;
+}
+
+Vector Vector::operator + (const Vector& rhs) {
+	Vector result;
+
+	result.x = x + rhs.x;
+	result.y = y + rhs.y;
+	result.z = z + rhs.z;
+
+	return result;
+}
+
+Vector Vector::operator * (float rhs) {
+	Vector result;
+
+	result.x = x * rhs;
+	result.y = y * rhs;
+	result.z = z * rhs;
+
+	return result;
 }

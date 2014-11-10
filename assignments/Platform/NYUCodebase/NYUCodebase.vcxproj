@@ -80,6 +80,7 @@
     <ClInclude Include="game.h" />
     <ClInclude Include="loader.h" />
     <ClInclude Include="matrix.h" />
+    <ClInclude Include="particleEmitter.h" />
     <ClInclude Include="sheetSprite.h" />
     <ClInclude Include="vector.h" />
   </ItemGroup>

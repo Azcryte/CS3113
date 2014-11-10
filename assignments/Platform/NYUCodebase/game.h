@@ -12,6 +12,7 @@
 #include "entity.h"
 #include "loader.h"
 #include "matrix.h"
+#include "particleEmitter.h"
 using namespace std;
 
 #define FIXED_TIMESTEP 0.0166666f
@@ -22,7 +23,7 @@ using namespace std;
 #define CHANCE_TO_START_ALIVE 0.6f
 #define DEATH_LIMIT 3
 #define BIRTH_LIMIT 4
-#define NUM_SIMULATION_STEPS 50
+#define NUM_SIMULATION_STEPS 20
 
 #define SPRITE_COUNT_X 16
 #define SPRITE_COUNT_Y 8
@@ -50,6 +51,8 @@ private:
 
 	Entity* user;
 	vector<Entity*> entities;
+
+	ParticleEmitter ParticleEmitterTest;
 	//vector<Entity*> asteroids;
 
 	unsigned char** levelData;
@@ -66,6 +69,7 @@ private:
 	bool checkCollision(Entity* a, Entity* b);
 
 	void worldToTileCoordinates(float x, float y, int* grid_x, int* grid_y);
+	void tileToWorldCoordinates(int grid_x, int grid_y, float* x, float* y);
 	float checkPointForGridCollisionX(float x, float y);
 	float checkPointForGridCollisionY(float x, float y);
 	void doLevelCollisionX(Entity* entity);
@@ -93,8 +97,8 @@ Game::Game() {
 
 	srand(static_cast <unsigned> (time(0)));
 
-	mapHeight = 100;
-	mapWidth = 100;
+	mapHeight = 30;
+	mapWidth = 30;
 	levelData = new unsigned char*[mapHeight];
 	for (int i = 0; i < mapHeight; ++i) {
 		levelData[i] = new unsigned char[mapWidth];
@@ -108,7 +112,6 @@ Game::Game() {
 	//}
 	buildLevel();
 
-	spriteSheet = LoadTexture("sheet.png");
 	spriteSheet2 = LoadTexture("arne_sprites.png");
 	spriteSheet3 = LoadTexture("characters_1.png");
 
@@ -127,7 +130,7 @@ void Game::Initialize() {
 	displayWindow = SDL_CreateWindow("My Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600, SDL_WINDOW_OPENGL);
 	SDL_GLContext context = SDL_GL_CreateContext(displayWindow);
 	SDL_GL_MakeCurrent(displayWindow, context);
-	glClearColor(0.4f, 0.2f, 0.4f, 1.0f);
+	glClearColor(0.5f, 0.2f, 0.7f, 1.0f);
 
 	glViewport(0, 0, 800, 600);
 	glMatrixMode(GL_PROJECTION);
@@ -140,7 +143,7 @@ bool Game::UpdateAndRender() {
 	lastFrameTicks = ticks;
 
 	user->buildMatrix();
-	user->setVector();
+	//user->setVector();
 
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
@@ -150,16 +153,23 @@ bool Game::UpdateAndRender() {
 		else if (event.type == SDL_KEYDOWN) {
 		}
 	}
+	if (keys[SDL_SCANCODE_SPACE]) {
+		//ParticleEmitterTest.active = true;
+	}
+	else {
+		//ParticleEmitterTest.active = false;
+	}
+
 	if (keys[SDL_SCANCODE_UP]) {
 		user->hover();
-		if (!user->isJumping) {
-			//user->jump();
-		}
-
+		//if (!user->isJumping) {
+		//	user->jump();
+		//}
 	} 
 	else if (user->isHovering) {
 		user->stopHovering();
 	}
+
 	if (keys[SDL_SCANCODE_RIGHT]) {
 		user->walkRight();
 	}
@@ -206,11 +216,12 @@ void Game::Render() {
 	glLoadIdentity();
 	glTranslatef(trans_x, trans_y, 0.0f);
 
-	user->Render();
 	//for (size_t i = 0; i < asteroids.size(); i++) {
 	//	asteroids[i]->Render();
 	//}
 	RenderLevel();
+	user->Render();
+	ParticleEmitterTest.Render();
 	SDL_GL_SwapWindow(displayWindow);
 }
 
@@ -228,24 +239,25 @@ void Game::RenderLevel() {
 
 	for (int y = 0; y < mapHeight; y++) {
 		for (int x = 0; x < mapWidth; x++) {
-			if (levelData[y][x] != 0 &&
+			if (levelData[y][x] != 12 &&
 				abs(x - grid_x) < 12 &&
 				abs(y - grid_y) < 12 )
 			{
+				float adjust = 0.001f;
 				float u = (float)(((int)levelData[y][x]) % SPRITE_COUNT_X) / (float)SPRITE_COUNT_X;
 				float v = (float)(((int)levelData[y][x]) / SPRITE_COUNT_X) / (float)SPRITE_COUNT_Y;
 				float spriteWidth = 1.0f / (float)SPRITE_COUNT_X;
 				float spriteHeight = 1.0f / (float)SPRITE_COUNT_Y;
 				vertexData.insert(vertexData.end(), {
-					TILE_SIZE* x, -TILE_SIZE* y,
-					TILE_SIZE* x, (-TILE_SIZE* y) - TILE_SIZE,
-					(TILE_SIZE* x) + TILE_SIZE, (-TILE_SIZE* y) - TILE_SIZE,
-					(TILE_SIZE* x) + TILE_SIZE, -TILE_SIZE* y
+					TILE_SIZE* x - adjust, -TILE_SIZE* y + adjust,
+					TILE_SIZE* x - adjust, (-TILE_SIZE* y) - TILE_SIZE - adjust,
+					(TILE_SIZE* x) + TILE_SIZE + adjust, (-TILE_SIZE* y) - TILE_SIZE - adjust,
+					(TILE_SIZE* x) + TILE_SIZE + adjust, -TILE_SIZE* y + adjust
 				});
-				textureCoordData.insert(textureCoordData.end(), { u, v,
-					u, v + (spriteHeight),
-					u + spriteWidth, v + (spriteHeight),
-					u + spriteWidth, v
+				textureCoordData.insert(textureCoordData.end(), { u + adjust, v + adjust,
+					u + adjust, v + spriteHeight - adjust,
+					u + spriteWidth - adjust, v + spriteHeight - adjust,
+					u + spriteWidth - adjust, v + adjust
 				});
 
 				numVertices += 4;
@@ -271,6 +283,14 @@ void Game::RenderLevel() {
 }
 
 void Game::Update(float elapsed) {
+	if (user->isIdle && fabs(user->vel_y) < 0.2 ) {
+		ParticleEmitterTest.active = false;
+	}
+	else {
+		ParticleEmitterTest.active = true;
+		//ParticleEmitterTest.reset();
+	}
+	ParticleEmitterTest.Update(elapsed);
 	//user->FixedUpdate();
 	//for (int i = 0; i < asteroids.size(); i++) {
 	//	asteroids[i]->FixedUpdate();
@@ -353,6 +373,11 @@ void Game::FixedUpdate() {
 
 	}
 	//user->FixedUpdate();
+	ParticleEmitterTest.position = Vector(user->x, user->y);
+	ParticleEmitterTest.velocity = Vector(-user->vel_x * 0.3f, -user->vel_y * 0.3f );
+	if (user->isHovering) {
+		ParticleEmitterTest.velocity = ParticleEmitterTest.velocity + Vector(0.0f, -0.5f);
+	}
 
 	float animation;
 	user->elapsed += FIXED_TIMESTEP;
@@ -433,27 +458,28 @@ void Game::reset() {
 	user = new Entity();
 	float adjust_u = 0.2f / 192.0f;
 	float adjust_v = 0.2f / 128.0f;
-	/*vector<float> u = {	92.0f / 192.0f, 108.0f / 192.0f, 124.0f / 192.0f,
-						92.0f / 192.0f, 108.0f / 192.0f, 124.0f / 192.0f };*/
 	vector<float> u = { 6.0f / 12.0f + adjust_u, 7.0f / 12.0f + adjust_u, 8.0f / 12.0f + adjust_u,
 						6.0f / 12.0f + adjust_u, 7.0f / 12.0f + adjust_u, 8.0f / 12.0f + adjust_u};
-	//vector<float> v = { 80.0f / 128.0f, 80.0f / 128.0f, 80.0f / 128.0f,
-	//					96.0f / 128.0f, 96.0f / 128.0f, 96.0f / 128.0f };
 	vector<float> v = { 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v,
 						6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v };
 	user->sprite = SheetSprite(spriteSheet3, u, v, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v);
-	user->scale_x = 0.8;
-	user->scale_y = 0.8;
+	user->scale_x = 0.8f;
+	user->scale_y = 0.8f;
 	user->fric_x = 5.0f;
 	user->fric_y = 5.0f;
 	user->elapsed = 0.0f;
 	user->y -= 0.5f;
 	user->x += 0.5f;
-	//user->x += (float) (-TILE_SIZE* mapWidth / 2);
+	//user->speed = 5.0f;
+	//user->x += (float) (-TILE_SIZE* mapWidth / 2);i
 	//user->y += (float) (TILE_SIZE* mapHeight / 2);
 
 	entities.clear();
 	entities.push_back(user);
+
+	ParticleEmitterTest = ParticleEmitter(Vector(user->x, user->y), Vector(0.0f, 0.0f), Vector(0.0f, 0.0f), 2.0f, 200);
+	//ParticleEmitterTest = ParticleEmitter(Vector(0.0f, 0.5f), Vector(0.8f, 0.5f), Vector(0.0f, -9.8f), 1.0f, 300);
+	ParticleEmitterTest.velocityDeviation = Vector(0.3f, 0.3f);
 
 	buildLevel();
 	/*SheetSprite asteroidTexture = SheetSprite(spriteSheet, 518.0f / 1024.0f, 810.0f / 1024.0f, 89.0f / 1024.0f, 82.0f / 1024.0f);
@@ -474,10 +500,40 @@ void Game::reset() {
 
 bool Game::isSolid(unsigned char tile) {
 	switch (tile) {
+	case 0:
+		return true;
+		break;
+	case 1:
+		return true;
+		break;
+	case 2:
+		return true;
+		break;
+	//case 3:
+	//	return true;
+	//	break;
+	case 16:
+		return true;
+		break;
+	case 17:
+		return true;
+		break;
+	case 18:
+		return true;
+		break;
+	case 19:
+		return true;
+		break;
 	case 32:
 		return true;
 		break;
 	case 33:
+		return true;
+		break;
+	case 34:
+		return true;
+		break;
+	case 35:
 		return true;
 		break;
 	default:
@@ -560,16 +616,19 @@ bool Game::checkCollision(Entity* a, Entity* b) {
 void Game::worldToTileCoordinates(float x, float y, int* grid_x, int* grid_y) {
 	*grid_x = (int)(x / TILE_SIZE);
 	*grid_y = (int)(-y / TILE_SIZE);
-	//*grid_x = (int)(((x * 16.0f) / TILE_SIZE) + (128.0f * 16.0f / 2.0f)) / 16.0f;
-	//*grid_y = (int)(((y * 16.0f) / -TILE_SIZE) + (32.0f * 16.0f / 2.0f)) / 16.0f;
+}
+
+void Game::tileToWorldCoordinates(int grid_x, int grid_y, float* x, float* y) {
+	*x = (float)(grid_x * TILE_SIZE);
+	*y = (float)(-grid_y * TILE_SIZE);
 }
 
 float Game::checkPointForGridCollisionX(float x, float y) {
 	int grid_x, grid_y;
 	worldToTileCoordinates(x, y, &grid_x, &grid_y);
-	//if (grid_x < 0 || grid_x > 128 || grid_y < 0 || grid_y > 32) {
-	//	return 0.0f;
-	//}
+	if (grid_x < 0 || grid_x > mapWidth || grid_y < 0 || grid_y > mapHeight) {
+		return 0.0f;
+	}
 
 	if (isSolid(levelData[grid_y][grid_x])) {
 		return 0.004f;
@@ -580,52 +639,46 @@ float Game::checkPointForGridCollisionX(float x, float y) {
 float Game::checkPointForGridCollisionY(float x, float y) {
 	int grid_x, grid_y;
 	worldToTileCoordinates(x, y, &grid_x, &grid_y);
-	//if (grid_x < 0 || grid_x > mapWidth || grid_y < 0 || grid_y > mapHeight) {
-	//	return 0.0f;
-	//}
+	if (grid_x < 0 || grid_x > mapWidth || grid_y < 0 || grid_y > mapHeight) {
+		return 0.0f;
+	}
 
 	if (isSolid(levelData[grid_y][grid_x])) {
-
-		float yCoordinate = (grid_y * TILE_SIZE);// -(TILE_SIZE*16.0);
+		float yCoordinate = (grid_y * TILE_SIZE);
 		return -y - yCoordinate;
-
 	}
 	return 0.0f;
 }
 
 void Game::doLevelCollisionX(Entity *entity) {
-	//check right
-
-	float adjust = checkPointForGridCollisionX(entity->x + entity->sprite.width * entity->scale_x * 0.5, entity->y);
+	//right
+	float adjust = checkPointForGridCollisionX(entity->x + entity->sprite.width * entity->scale_x * 0.5f, entity->y);
 	if (adjust != 0.0f) {
 		entity->x -= adjust;
 		entity->vel_x = 0.0f;
 		entity->collidedRight = true;
 	}
 
-	//check left
-
-	adjust = checkPointForGridCollisionX(entity->x - entity->sprite.width * entity->scale_x * 0.5, entity->y);
+	//left
+	adjust = checkPointForGridCollisionX(entity->x - entity->sprite.width * entity->scale_x * 0.5f, entity->y);
 	if (adjust != 0.0f) {
 		entity->x += adjust;
 		entity->vel_x = 0.0f;
 		entity->collidedLeft = true;
 	}
-
 }
 
 void Game::doLevelCollisionY(Entity *entity) {
-	//check bottom
-
-	float adjust = checkPointForGridCollisionY(entity->x, entity->y - entity->sprite.height * 1.5 *0.5);
+	//bottom
+	float adjust = checkPointForGridCollisionY(entity->x, entity->y - entity->sprite.height *0.5f);
 	if (adjust != 0.0f) {
 		entity->y += adjust;
 		entity->vel_y = 0.0f;
 		entity->collidedBot = true;
 	}
 
-	////check top
-	adjust = checkPointForGridCollisionY(entity->x, entity->y + entity->sprite.height * 0.5);
+	//top
+	adjust = checkPointForGridCollisionY(entity->x, entity->y + entity->sprite.height * 0.5f);
 	if (adjust != 0.0f) {
 		entity->y -= adjust * 0.05f;
 		entity->vel_y = 0.0f;
@@ -655,24 +708,90 @@ void Game::buildLevel() {
 	for (int i = 0; i < mapHeight; i++) {
 		for (int j = 0; j < mapWidth; j++) {
 			float temp = randomFloat(0.0f, 1.0f);
-			if (cellmap[i][j] || i == 0 || j == 0 || i == mapWidth-1 || j == mapHeight-1) {
-				if (temp < 0.7f) {
+			if (i == 0 || j == 0 || i == mapWidth - 1 || j == mapHeight - 1) {
+				levelData[i][j] = 3;
+			}
+			else if (cellmap[i][j]) {
+				if (!cellmap[i-1][j]) {
+					if (!cellmap[i][j-1]) {
+						levelData[i][j] = 0;
+					}
+					else if (!cellmap[i][j+1]) {
+						levelData[i][j] = 2;
+					}
+					else {
+						if (temp < 0.2f) {
+							levelData[i][j] = 1;
+						}
+						else if (temp < 0.4f) {
+							levelData[i][j] = 16;
+						}
+						else if (temp < 0.6f) {
+							levelData[i][j] = 17;
+						}
+						else if (temp < 0.8f) {
+							levelData[i][j] = 18;
+						}
+						else {
+							levelData[i][j] = 19;
+						}
+					}
+				}
+				else if (temp < 0.35f) {
 					levelData[i][j] = 32;
 				}
-				else if (temp >= 0.7f) {
+				else if (temp < 0.5f) {
 					levelData[i][j] = 33;
 				}
+				else if (temp < 0.65f) {
+					levelData[i][j] = 34;
+				}
+				else {
+					levelData[i][j] = 35;
+				}
 			}
+			//background: 89, 90, 91, 92, 105, 106, 107, 108, 121, 122, 123, 124
 			else {
-				levelData[i][j] = 0;
+				//if (temp < 0.083f) {
+				//	levelData[i][j] = 89;
+				//}
+				//else if (temp < 0.167f) {
+				//	levelData[i][j] = 90;
+				//}
+				//else if (temp < 0.25f) {
+				//	levelData[i][j] = 91;
+				//}
+				//else if (temp < 0.333f) {
+				//	levelData[i][j] = 92;
+				//}
+				//else if (temp < 0.417f) {
+				//	levelData[i][j] = 105;
+				//}
+				//else if (temp < 0.5f) {
+				//	levelData[i][j] = 106;
+				//}
+				//else if (temp < 0.583f) {
+				//	levelData[i][j] = 107;
+				//}
+				//else if (temp < 0.667f) {
+				//	levelData[i][j] = 108;
+				//}
+				//else if (temp < 0.75f) {
+				//	levelData[i][j] = 121;
+				//}
+				//else if (temp < 0.833f) {
+				//	levelData[i][j] = 122;
+				//}
+				//else if (temp < 0.917f) {
+				//	levelData[i][j] = 123;
+				//}
+				//else {
+				//	levelData[i][j] = 124;
+				//}
+				levelData[i][j] = 12;
 			}
 		}
 	}
-	//for (int y = 0; y < mapHeight; y++) {
-	//	for (int x = 0; x < mapWidth; x++) {
-	//		levelData[y][x] = 3;
-	//	}
-	//}
 }
 
 bool** Game::doSimulationStep(bool** oldMap) {
@@ -722,109 +841,3 @@ int Game::countAliveNeighbors(bool** map, int x, int y) {
 	}
 	return count;
 }
-
-//void Game::buildLevel() {
-//	ifstream infile("levelFile.txt");
-//	string line;
-//	while (getline(infile, line)) {
-//		if (line == "[header]") {
-//			if (!readHeader(infile)) {
-//				return;
-//			}
-//		}
-//		else if (line == "[layer]") {
-//			readLayerData(infile);
-//		}
-//		else if (line == "[Object Layer 1]") {
-//			readEntityData(infile);
-//		}
-//	}
-//}
-//
-//bool Game::readHeader(ifstream& stream) {
-//	string line;
-//	mapWidth = -1;
-//	mapHeight = -1;
-//	while (getline(stream, line)) {
-//		if (line == "") { break; }
-//
-//		istringstream sStream(line);
-//		string key, value;
-//		getline(sStream, key, '=');
-//		getline(sStream, value);
-//
-//		if (key == "width") {
-//			mapWidth = atoi(value.c_str());
-//		}
-//		else if (key == "height"){
-//			mapHeight = atoi(value.c_str());
-//		}
-//	}
-//
-//	if (mapWidth == -1 || mapHeight == -1) {
-//		return false;
-//	}
-//	else { // allocate our map data
-//		levelData = new unsigned char*[mapHeight];
-//		for (int i = 0; i < mapHeight; ++i) {
-//			levelData[i] = new unsigned char[mapWidth];
-//		}
-//		return true;
-//	}
-//}
-//bool Game::readLayerData(ifstream& stream) {
-//	string line;
-//	while (getline(stream, line)) {
-//		if (line == "") { break; }
-//		istringstream sStream(line);
-//		string key, value;
-//		getline(sStream, key, '=');
-//		getline(sStream, value);
-//		if (key == "data") {
-//			for (int y = 0; y < mapHeight; y++) {
-//				getline(stream, line);
-//				istringstream lineStream(line);
-//				string tile;
-//
-//				for (int x = 0; x < mapWidth; x++) {
-//					getline(lineStream, tile, ',');
-//					unsigned char val = (unsigned char)atoi(tile.c_str());
-//					if (val > 0) {
-//						levelData[y][x] = val;
-//					}
-//					else {
-//						levelData[y][x] = 0;
-//					}
-//				}
-//
-//			}
-//		}
-//	}
-//	return true;
-//}
-//bool Game::readEntityData(ifstream& stream) {
-//	string line;
-//	string type;
-//	while (getline(stream, line)) {
-//		if (line == "") { break; }
-//		istringstream sStream(line);
-//		string key, value;
-//		getline(sStream, key, '=');
-//		getline(sStream, value);
-//		if (key == "type") {
-//			type = value;
-//		}
-//		else if (key == "location") {
-//			istringstream lineStream(value);
-//			string xPosition, yPosition;
-//			getline(lineStream, xPosition, ',');
-//			getline(lineStream, yPosition, ',');
-//
-//			float placeX = (atoi(xPosition.c_str()) + 8.0f - 128.0f * 16.0f / 2.0f) / 16.0f * TILE_SIZE;
-//			float placeY = (atoi(yPosition.c_str()) - 8.0f - 32.0f * 16.0f / 2.0f) / 16.0f * -TILE_SIZE;
-//
-//			//placeEntity(type, placeX, placeY);
-//		}
-//	}
-//	return true;
-//}
