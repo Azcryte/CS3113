@@ -10,10 +10,10 @@
 #include <sstream>
 #include <ctime>
 #include "entity.h"
-#include "loader.h"
-#include "matrix.h"
+//#include "loader.h"
+//#include "matrix.h"
 #include "particleEmitter.h"
-using namespace std;
+//using namespace std;
 
 #define FIXED_TIMESTEP 0.0166666f
 #define MAX_TIMESTEPS 6
@@ -44,24 +44,26 @@ private:
 	bool done;
 	float lastFrameTicks;
 	float timeLeftOver;
+	float timeElapsed;
 	SDL_Window* displayWindow;
 	GLuint spriteSheet;
 	GLuint spriteSheet2;
 	GLuint spriteSheet3;
 
-	Entity* user;
-	vector<Entity*> entities;
+	Entity* player;
+	vector<Entity*> enemies;
+	Entity* gun1;
 
 	ParticleEmitter ParticleEmitterTest;
+	//ParticleEmitter BulletShooterTest;
 	//vector<Entity*> asteroids;
-
+	
 	unsigned char** levelData;
+	bool** cellmap;
 	int mapWidth;
 	int mapHeight;
-	bool** cellmap;
-	//bool cellmap[MAP_WIDTH][MAP_HEIGHT];
-	//float grav_x;
-	//float grav_y;
+	int spawn_x;
+	int spawn_y;
 
 	void reset();
 
@@ -78,11 +80,6 @@ private:
 	void buildLevel();
 	bool** doSimulationStep(bool** oldMap);
 	int countAliveNeighbors(bool** map, int x, int y);
-
-	//void buildLevel();
-	//bool readHeader(ifstream& stream);
-	//bool readLayerData(ifstream& stream);
-	//bool readEntityData(ifstream& stream);
 
 };
 
@@ -130,7 +127,7 @@ void Game::Initialize() {
 	displayWindow = SDL_CreateWindow("My Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600, SDL_WINDOW_OPENGL);
 	SDL_GLContext context = SDL_GL_CreateContext(displayWindow);
 	SDL_GL_MakeCurrent(displayWindow, context);
-	glClearColor(0.5f, 0.2f, 0.7f, 1.0f);
+	glClearColor(0.0f, 0.2f, 0.7f, 1.0f);
 
 	glViewport(0, 0, 800, 600);
 	glMatrixMode(GL_PROJECTION);
@@ -142,8 +139,9 @@ bool Game::UpdateAndRender() {
 	float elapsed = ticks - lastFrameTicks;
 	lastFrameTicks = ticks;
 
-	user->buildMatrix();
-	//user->setVector();
+	//player->buildMatrix();
+	//gun1->buildMatrix();
+	//player->setVector();
 
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
@@ -152,32 +150,46 @@ bool Game::UpdateAndRender() {
 		}
 		else if (event.type == SDL_KEYDOWN) {
 		}
+		else if (event.type == SDL_MOUSEMOTION) {
+		}
+		else if (event.type == SDL_MOUSEBUTTONDOWN) {
+		}
 	}
-	if (keys[SDL_SCANCODE_SPACE]) {
-		//ParticleEmitterTest.active = true;
+	//if (keys[SDL_SCANCODE_SPACE]) {
+	//	ParticleEmitterTest.active = true;
+	//}
+	//else {
+	//	ParticleEmitterTest.active = false;
+	////}
+	if (event.button.button == 1) {
+		//gun1->bulletActive = true;
+		if (gun1->lifetime > gun1->maxLifetime) {
+			gun1->bulletReset(player->position);
+		}
+		if (!gun1->bulletActive) {
+			gun1->bulletShoot( Vector(((((float)event.motion.x / 800.0f) * 2.666f) - 1.333f),
+							           (((float)(600 - event.motion.y) / 600.0f) * 2.0f) - 1.0f));
+		}
+		//BulletShooterTest.bullets[0].active = true;
 	}
-	else {
-		//ParticleEmitterTest.active = false;
-	}
-
 	if (keys[SDL_SCANCODE_UP]) {
-		user->hover();
-		//if (!user->isJumping) {
-		//	user->jump();
+		player->hover();
+		//if (!player->isJumping) {
+		//	player->jump();
 		//}
 	} 
-	else if (user->isHovering) {
-		user->stopHovering();
+	else if (player->isHovering) {
+		player->stopHovering();
 	}
 
 	if (keys[SDL_SCANCODE_RIGHT]) {
-		user->walkRight();
+		player->moveRight();
 	}
 	else if (keys[SDL_SCANCODE_LEFT]) {
-		user->walkLeft();
+		player->moveLeft();
 	}
 	else {
-		user->setIdle();
+		player->setIdle();
 	}
 
 	float fixedElapsed = elapsed + timeLeftOver;
@@ -197,20 +209,20 @@ bool Game::UpdateAndRender() {
 
 void Game::Render() {
 	glClear(GL_COLOR_BUFFER_BIT);
-	float trans_x = -user->x;
-	float trans_y = -user->y;
-	//if (trans_y > 2.0f) {
-	//	trans_y = 2.0f;
+	float trans_x = -player->position.x;
+	float trans_y = -player->position.y;
+	////if (trans_y > 0.0f) {
+	////	trans_y = 0.0f;
+	////}
+	//if (trans_y < 1.0f) {
+	//	trans_y = 1.0f;
 	//}
-	//if (trans_y < -2.0f) {
-	//	trans_y = -2.0f;
+	//if (trans_x > -1.0f) {
+	//	trans_x = -1.0f;
 	//}
-	//if (trans_x > 2.0f) {
-	//	trans_x = 2.0f;
-	//}
-	//if (trans_x < -2.0f) {
-	//	trans_x = -2.0f;
-	//}
+	////if (trans_x < -2.0f) {
+	////	trans_x = -2.0f;
+	////}
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
@@ -220,8 +232,12 @@ void Game::Render() {
 	//	asteroids[i]->Render();
 	//}
 	RenderLevel();
-	user->Render();
+	player->Render();
+	if (gun1->bulletActive) {
+		gun1->Render();
+	}
 	ParticleEmitterTest.Render();
+	//BulletShooterTest.Render();
 	SDL_GL_SwapWindow(displayWindow);
 }
 
@@ -233,7 +249,7 @@ void Game::RenderLevel() {
 	vector<float> textureCoordData;
 
 	int grid_x, grid_y;
-	worldToTileCoordinates(user->x, user->y, &grid_x, &grid_y);
+	worldToTileCoordinates(player->position.x, player->position.y, &grid_x, &grid_y);
 
 	int numVertices = 0;
 
@@ -283,151 +299,151 @@ void Game::RenderLevel() {
 }
 
 void Game::Update(float elapsed) {
-	if (user->isIdle && fabs(user->vel_y) < 0.2 ) {
-		ParticleEmitterTest.active = false;
-	}
-	else {
-		ParticleEmitterTest.active = true;
-		//ParticleEmitterTest.reset();
-	}
-	ParticleEmitterTest.Update(elapsed);
-	//user->FixedUpdate();
+	//player->FixedUpdate();
 	//for (int i = 0; i < asteroids.size(); i++) {
 	//	asteroids[i]->FixedUpdate();
 	//}
 }
 
 void Game::FixedUpdate() {
-	for (size_t i = 0; i < entities.size(); i++) {
-		entities[i]->FixedUpdate();
+	timeElapsed += FIXED_TIMESTEP;
 
-		// ****** put in fixed update v *******
-		if (entities[i]->collidedBot) {
-			entities[i]->isJumping = false;
-			//if (entities[i]->vel_y < 0.0f) {
-				entities[i]->vel_y = 0.0f;
-			//}
-		}
-		//if (entities[i]->collidedTop) {
-		//	if (entities[i]->vel_y > 0.0f) {
-		//		//entities[i]->vel_y = 0.0f;
-		//	}
-		//}
-		if (entities[i]->collidedRight) {
-			//if (entities[i]->facingRight) {
-				entities[i]->vel_x = 0.0f;
-			//}
-		}
-		if (entities[i]->collidedLeft) {
-			//if (!entities[i]->facingRight) {
-				entities[i]->vel_x = 0.0f;
-			//}
-		}
-
-		entities[i]->collidedBot = false;
-		entities[i]->collidedTop = false;
-		entities[i]->collidedRight = false;
-		entities[i]->collidedLeft = false;
-
-		entities[i]->vel_x += entities[i]->grav_x * FIXED_TIMESTEP;
-		entities[i]->vel_y += entities[i]->grav_y * FIXED_TIMESTEP;
-
-		entities[i]->vel_x = lerp(entities[i]->vel_x, 0.0f, FIXED_TIMESTEP * entities[i]->fric_x);
-		entities[i]->vel_y = lerp(entities[i]->vel_y, 0.0f, FIXED_TIMESTEP * entities[i]->fric_y);
-
-		entities[i]->vel_x += entities[i]->acc_x * FIXED_TIMESTEP;
-		entities[i]->vel_y += entities[i]->acc_y * FIXED_TIMESTEP;
-		
-		entities[i]->y += entities[i]->vel_y * FIXED_TIMESTEP;
-		for (size_t j = 0; j < entities.size(); j++) {
-			if (checkCollision(entities[i], entities[j]) && entities[i] != entities[j]) {
-				float yPenetration = fabs(fabs(entities[j]->y - entities[i]->y) - (entities[i]->sprite.height * entities[i]->scale_y) / 2.0f - (entities[j]->sprite.height * entities[j]->scale_y) / 2.0f);
-				if (entities[i]->y > entities[j]->y) {
-					entities[i]->y += yPenetration + 0.001f;
-					entities[i]->collidedBot = true;
-				}
-				else if (entities[i]->y < entities[j]->y) {
-					entities[i]->y -= yPenetration + 0.001f;
-					entities[i]->collidedTop = true;
-				}
-			}
-		}
-		doLevelCollisionY(entities[i]);
-
-		entities[i]->x += entities[i]->vel_x * FIXED_TIMESTEP;
-		for (size_t j = 0; j < entities.size(); j++) {
-			if (checkCollision(entities[i], entities[j]) && entities[i] != entities[j]) {
-				float xPenetration = fabs(fabs(entities[j]->x - entities[i]->x) - (entities[i]->sprite.width * entities[i]->scale_x) / 2.0f - (entities[j]->sprite.width * entities[j]->scale_x) / 2.0f);
-				if (entities[i]->x > entities[j]->x) {
-					entities[i]->x += xPenetration + 0.001f;
-					entities[i]->collidedLeft = true;
-				}
-				else if (entities[i]->x < entities[j]->x) {
-					entities[i]->x -= xPenetration + 0.001f;
-					entities[i]->collidedRight = true;
-				}
-			}
-		}
-		//looks like a tunnel, if hit bottom/left/top crash
-		doLevelCollisionX(entities[i]);
-
-	}
-	//user->FixedUpdate();
-	ParticleEmitterTest.position = Vector(user->x, user->y);
-	ParticleEmitterTest.velocity = Vector(-user->vel_x * 0.3f, -user->vel_y * 0.3f );
-	if (user->isHovering) {
-		ParticleEmitterTest.velocity = ParticleEmitterTest.velocity + Vector(0.0f, -0.5f);
-	}
+	//player
+	player->FixedUpdate();
+	player->position.y += player->velocity.y * FIXED_TIMESTEP;
+	doLevelCollisionY(player);
+	player->position.x += player->velocity.x * FIXED_TIMESTEP;
+	doLevelCollisionX(player);
 
 	float animation;
-	user->elapsed += FIXED_TIMESTEP;
-	animation = fmod(user->elapsed, FIXED_TIMESTEP * 40.0f);
-	if (user->facingRight) {
-		/*if (user->vel_x < 0.2f) {
-			user->sprite.frame = 4;
+	player->elapsed += FIXED_TIMESTEP;
+	animation = fmod(player->elapsed, FIXED_TIMESTEP * 40.0f);
+	if (player->facingRight) {
+		/*if (player->velocity.x < 0.2f) {
+		player->sprite.frame = 4;
 		}
 		else */if (animation < FIXED_TIMESTEP * 10.0f) {
-			user->sprite.frame = 3;
+		player->sprite.frame = 3;
 		}
 		else if (animation < FIXED_TIMESTEP * 20.0f) {
-			user->sprite.frame = 4;
+			player->sprite.frame = 4;
 		}
 		else if (animation < FIXED_TIMESTEP * 30.0f) {
-			user->sprite.frame = 5;
+			player->sprite.frame = 5;
 		}
 		else {
-			user->sprite.frame = 4;
+			player->sprite.frame = 4;
 		}
 	}
-	else if (!user->facingRight ) {
-		/*if (user->vel_x > -0.2f) {
-			user->sprite.frame = 1;
+	else if (!player->facingRight) {
+		/*if (player->velocity.x > -0.2f) {
+		player->sprite.frame = 1;
 		}
 		else */if (animation < FIXED_TIMESTEP * 10.0f) {
-			user->sprite.frame = 0;
+		player->sprite.frame = 0;
 		}
 		else if (animation < FIXED_TIMESTEP * 20.0f) {
-			user->sprite.frame = 1;
+			player->sprite.frame = 1;
 		}
 		else if (animation < FIXED_TIMESTEP * 30.0f) {
-			user->sprite.frame = 2;
+			player->sprite.frame = 2;
 		}
 		else {
-			user->sprite.frame = 1;
+			player->sprite.frame = 1;
 		}
 	}
+
+	//enemies
+	for (size_t i = 0; i < enemies.size(); i++) {
+		enemies[i]->FixedUpdate();
+
+		// ****** put in fixed update v *******
+		
+		enemies[i]->position.y += enemies[i]->velocity.y * FIXED_TIMESTEP;
+		for (size_t j = 0; j < enemies.size(); j++) {
+			if (checkCollision(enemies[i], enemies[j]) && enemies[i] != enemies[j]) {
+				float yPenetration = fabs(fabs(enemies[j]->position.y - enemies[i]->position.y) - (enemies[i]->sprite.height * enemies[i]->scale_y) / 2.0f - (enemies[j]->sprite.height * enemies[j]->scale_y) / 2.0f);
+				if (enemies[i]->position.y > enemies[j]->position.y) {
+					enemies[i]->position.y += yPenetration + 0.001f;
+					enemies[i]->collidedBot = true;
+				}
+				else if (enemies[i]->position.y < enemies[j]->position.y) {
+					enemies[i]->position.y -= yPenetration + 0.001f;
+					enemies[i]->collidedTop = true;
+				}
+			}
+		}
+		doLevelCollisionY(enemies[i]);
+
+		enemies[i]->position.x += enemies[i]->velocity.x * FIXED_TIMESTEP;
+		for (size_t j = 0; j < enemies.size(); j++) {
+			if (checkCollision(enemies[i], enemies[j]) && enemies[i] != enemies[j]) {
+				float xPenetration = fabs(fabs(enemies[j]->position.x - enemies[i]->position.x) - (enemies[i]->sprite.width * enemies[i]->scale_x) / 2.0f - (enemies[j]->sprite.width * enemies[j]->scale_x) / 2.0f);
+				if (enemies[i]->position.x > enemies[j]->position.x) {
+					enemies[i]->position.x += xPenetration + 0.001f;
+					enemies[i]->collidedLeft = true;
+				}
+				else if (enemies[i]->position.x < enemies[j]->position.x) {
+					enemies[i]->position.x -= xPenetration + 0.001f;
+					enemies[i]->collidedRight = true;
+				}
+			}
+		}
+		doLevelCollisionX(enemies[i]);
+	}
+
+	//gun
+	if (gun1->bulletActive) {
+		gun1->FixedUpdate();
+		gun1->position.y += gun1->velocity.y * FIXED_TIMESTEP;
+		//doLevelCollisionY(gun1);
+		gun1->position.x += gun1->velocity.x * FIXED_TIMESTEP;
+		//doLevelCollisionX(gun1);
+		if (checkPointForGridCollisionX(gun1->position.x, gun1->position.y) != 0.0f || checkPointForGridCollisionY(gun1->position.x, gun1->position.y) != 0.0f) {
+			gun1->bulletReset(player->position);
+		}
+		if (gun1->lifetime > gun1->maxLifetime) {
+			gun1->bulletActive = false;
+		}
+	}
+
+	//particleEmitterTest
+	if (player->isIdle && fabs(player->velocity.y) < 0.2  && !player->isHovering) {
+		ParticleEmitterTest.active = false;
+	}
+	else {
+		ParticleEmitterTest.active = true;
+		//ParticleEmitterTest.areset();
+	}
+	ParticleEmitterTest.position = Vector(player->position.x, player->position.y);
+	ParticleEmitterTest.velocity = Vector(-player->velocity.x * 0.3f, -player->velocity.y * 0.3f );
+	if (player->isHovering) {
+		ParticleEmitterTest.velocity = ParticleEmitterTest.velocity + Vector(0.0f, -0.5f);
+	}
+	ParticleEmitterTest.FixedUpdate();
+	
+
+	////bulletshooter
+	//BulletShooterTest.position = Vector(player->position.x, player->position.y);
+	//if (player->facingRight) {
+	//	BulletShooterTest.velocity = Vector(3.0f, 0.0f);
+	//}
+	//else {
+	//	BulletShooterTest.velocity = Vector(-3.0f, 0.0f);
+	//}
+	//BulletShooterTest.FixedUpdate();
 
 	//for (size_t i = 0; i < asteroids.size(); i++) {
 	//	asteroids[i]->FixedUpdate();
 	//	
-	//	//user vs asteroid
-	//	if (checkCollision(user, asteroids[i])) {
-	//		Vector distance = Vector(user->x - asteroids[i]->x, user->y - asteroids[i]->y);
+	//	//player vs asteroid
+	//	if (checkCollision(player, asteroids[i])) {
+	//		Vector distance = Vector(player->x - asteroids[i]->x, player->y - asteroids[i]->y);
 	//		float distLength = distance.length();
 	//		distance.normalize();
 	//
-	//		user->x += distance.x * 0.0002f / pow(distLength, 2);
-	//		user->y += distance.y * 0.0002f / pow(distLength, 2);
+	//		player->x += distance.x * 0.0002f / pow(distLength, 2);
+	//		player->y += distance.y * 0.0002f / pow(distLength, 2);
 	//
 	//		asteroids[i]->x -= distance.x * 0.0002f / pow(distLength, 2);
 	//		asteroids[i]->y -= distance.y * 0.0002f / pow(distLength, 2);
@@ -454,34 +470,57 @@ void Game::FixedUpdate() {
 void Game::reset() {
 	//grav_x = 0.0f;
 	//grav_y = -9.8f;
+	buildLevel();
+	enemies.clear();
 
-	user = new Entity();
+	player = new Entity();
 	float adjust_u = 0.2f / 192.0f;
 	float adjust_v = 0.2f / 128.0f;
 	vector<float> u = { 6.0f / 12.0f + adjust_u, 7.0f / 12.0f + adjust_u, 8.0f / 12.0f + adjust_u,
 						6.0f / 12.0f + adjust_u, 7.0f / 12.0f + adjust_u, 8.0f / 12.0f + adjust_u};
 	vector<float> v = { 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v,
 						6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v };
-	user->sprite = SheetSprite(spriteSheet3, u, v, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v);
-	user->scale_x = 0.8f;
-	user->scale_y = 0.8f;
-	user->fric_x = 5.0f;
-	user->fric_y = 5.0f;
-	user->elapsed = 0.0f;
-	user->y -= 0.5f;
-	user->x += 0.5f;
-	//user->speed = 5.0f;
-	//user->x += (float) (-TILE_SIZE* mapWidth / 2);i
-	//user->y += (float) (TILE_SIZE* mapHeight / 2);
+	player->sprite = SheetSprite(spriteSheet3, u, v, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v);
+	float playerSpawn_x, playerSpawn_y;
+	tileToWorldCoordinates(spawn_x, spawn_y, &playerSpawn_x, &playerSpawn_y);
+	player->position.y += playerSpawn_y;
+	player->position.x += playerSpawn_x;
+	//player->speed = 5.0f;
+	//player->x += (float) (-TILE_SIZE* mapWidth / 2);i
+	//player->y += (float) (TILE_SIZE* mapHeight / 2);
+	//entities.push_back(player);
 
-	entities.clear();
-	entities.push_back(user);
+	gun1 = new Entity();
+	vector<float> u2 = { 6.0f / 12.0f + adjust_u };
+	vector<float> v2 = { 5.0f / 8.0f + adjust_v };
+	gun1->sprite = SheetSprite(spriteSheet3, u2, v2, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v);
+	gun1->position = player->position;
+	gun1->scale_x = 0.5f;
+	gun1->scale_y = 0.5f;
+	gun1->speed = 2.0f;
+	gun1->fric_x = 0.0f;
+	gun1->fric_y = 0.0f;
+	gun1->grav_x = 0.0f;
+	gun1->grav_y = 0.0f;
+	gun1->maxLifetime = 0.5f;
 
-	ParticleEmitterTest = ParticleEmitter(Vector(user->x, user->y), Vector(0.0f, 0.0f), Vector(0.0f, 0.0f), 2.0f, 200);
-	//ParticleEmitterTest = ParticleEmitter(Vector(0.0f, 0.5f), Vector(0.8f, 0.5f), Vector(0.0f, -9.8f), 1.0f, 300);
+
+
+	ParticleEmitterTest = ParticleEmitter(2.0f, 300);
+	ParticleEmitterTest.position = Vector(player->position.x, player->position.y);
+	ParticleEmitterTest.gravity = Vector(0.0f, 0.0f);
+	ParticleEmitterTest.velocity = Vector(0.0f, 0.0f);
+	//ParticleEmitterTest = ParticleEmitter(Vector(player->x, player->y), Vector(0.0f, 0.0f), Vector(0.0f, 0.0f), 2.0f, 300);
 	ParticleEmitterTest.velocityDeviation = Vector(0.3f, 0.3f);
 
-	buildLevel();
+	//vector<float> u2 = { 6.0f / 12.0f + adjust_u };
+	//vector<float> v2 = { 5.0f / 8.0f + adjust_v };
+	//BulletShooterTest = ParticleEmitter(0.5f, 10, SheetSprite(spriteSheet3, u, v, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v));
+	//BulletShooterTest.position = Vector(player->position.x, player->position.y);
+	//BulletShooterTest.gravity = Vector(0.0f, 0.0f);
+	//BulletShooterTest.velocity = Vector(0.0f, 0.0f);
+	//BulletShooterTest.velocityDeviation = Vector(0.0f, 0.0f);
+
 	/*SheetSprite asteroidTexture = SheetSprite(spriteSheet, 518.0f / 1024.0f, 810.0f / 1024.0f, 89.0f / 1024.0f, 82.0f / 1024.0f);
 	for (int i = 0; i < NUM_ASTEROIDS; i++) {
 		Entity* asteroid = new Entity();
@@ -491,8 +530,8 @@ void Game::reset() {
 		asteroid->x = randomFloat(-1.33f, 1.33f);
 		asteroid->y = randomFloat(-1.0f, 1.0f);
 		asteroid->rotation = randomFloat(0.0f, 2.0f * (float)M_PI);
-		asteroid->vel_x = randomFloat(-0.3f, 0.3f);
-		asteroid->vel_y = randomFloat(-0.3f, 0.3f);
+		asteroid->velocity.x = randomFloat(-0.3f, 0.3f);
+		asteroid->velocity.y = randomFloat(-0.3f, 0.3f);
 		asteroids.push_back(asteroid);
 	}*/
 
@@ -652,36 +691,36 @@ float Game::checkPointForGridCollisionY(float x, float y) {
 
 void Game::doLevelCollisionX(Entity *entity) {
 	//right
-	float adjust = checkPointForGridCollisionX(entity->x + entity->sprite.width * entity->scale_x * 0.5f, entity->y);
+	float adjust = checkPointForGridCollisionX(entity->position.x + entity->sprite.width * entity->scale_x * 0.5f, entity->position.y);
 	if (adjust != 0.0f) {
-		entity->x -= adjust;
-		entity->vel_x = 0.0f;
+		entity->position.x -= adjust;
+		entity->velocity.x = 0.0f;
 		entity->collidedRight = true;
 	}
 
 	//left
-	adjust = checkPointForGridCollisionX(entity->x - entity->sprite.width * entity->scale_x * 0.5f, entity->y);
+	adjust = checkPointForGridCollisionX(entity->position.x - entity->sprite.width * entity->scale_x * 0.5f, entity->position.y);
 	if (adjust != 0.0f) {
-		entity->x += adjust;
-		entity->vel_x = 0.0f;
+		entity->position.x += adjust;
+		entity->velocity.x = 0.0f;
 		entity->collidedLeft = true;
 	}
 }
 
 void Game::doLevelCollisionY(Entity *entity) {
 	//bottom
-	float adjust = checkPointForGridCollisionY(entity->x, entity->y - entity->sprite.height *0.5f);
+	float adjust = checkPointForGridCollisionY(entity->position.x, entity->position.y - entity->sprite.height *0.5f);
 	if (adjust != 0.0f) {
-		entity->y += adjust;
-		entity->vel_y = 0.0f;
+		entity->position.y += adjust;
+		entity->velocity.y = 0.0f;
 		entity->collidedBot = true;
 	}
 
 	//top
-	adjust = checkPointForGridCollisionY(entity->x, entity->y + entity->sprite.height * 0.5f);
+	adjust = checkPointForGridCollisionY(entity->position.x, entity->position.y + entity->sprite.height * 0.5f);
 	if (adjust != 0.0f) {
-		entity->y -= adjust * 0.05f;
-		entity->vel_y = 0.0f;
+		entity->position.y -= adjust * 0.05f;
+		entity->velocity.y = 0.0f;
 		entity->collidedTop = true;
 	}
 }
@@ -705,6 +744,7 @@ void Game::buildLevel() {
 		cellmap = doSimulationStep(cellmap);
 	}
 	//transfer cellmap to leveldata
+	bool spawnSet = false;
 	for (int i = 0; i < mapHeight; i++) {
 		for (int j = 0; j < mapWidth; j++) {
 			float temp = randomFloat(0.0f, 1.0f);
@@ -713,6 +753,11 @@ void Game::buildLevel() {
 			}
 			else if (cellmap[i][j]) {
 				if (!cellmap[i-1][j]) {
+					if (!spawnSet) {
+						spawn_x = j;
+						spawn_y = i;
+						spawnSet = true;
+					}
 					if (!cellmap[i][j-1]) {
 						levelData[i][j] = 0;
 					}

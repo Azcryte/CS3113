@@ -3,23 +3,17 @@
 #include <SDL_opengl.h>
 #include <SDL_image.h>
 #include <vector>
-#include "vector.h"
+//#include "matrix.h"
 #include "loader.h"
-using namespace std;
+//#include "sheetSprite.h"
+#include "entity.h"
 
-float randomFloat(float min, float max){
-	float random = ((float)rand()) / (float)RAND_MAX;
-	return (random*(max - min)) + min;
-}
-
-float lerp(float v0, float v1, float t) {
-	return (1.0f - t)*v0 + t*v1;
-}
+#define FIXED_TIMESTEP 0.0166666f
+#define MAX_TIMESTEPS 6
 
 class Particle {
 public:
 	//Particle(Vector pos, Vector vel, float t);
-
 	Vector position;
 	Vector velocity;
 	float lifetime;
@@ -32,12 +26,16 @@ public:
 class ParticleEmitter {
 public:
 	ParticleEmitter();
-	ParticleEmitter(Vector pos, Vector grav, Vector vel, float t, unsigned int particleCount);
+	ParticleEmitter(float time, unsigned int particleCount);
+	//ParticleEmitter(float time, unsigned int bulletCount, SheetSprite sprite);
+	//ParticleEmitter(Vector pos, Vector grav, Vector vel, float t, unsigned int particleCount);
 	~ParticleEmitter();
 
-	void Update(float elapsed);
+	void FixedUpdate();
 	void Render();
 	void reset();
+
+	//void shootBullet();
 
 	bool active;
 	Vector position;
@@ -48,11 +46,15 @@ public:
 	
 	float startSize;
 	float endSize;
-	
+	//bool shootingBullets;
+	//bool shootingParticles;
+	//vector<Entity*> bullets;
 	vector<Particle> particles;
 };
 
 ParticleEmitter::ParticleEmitter() {
+	//shootingBullets = false;
+	//shootingParticles = false;
 	active = false;
 	position = Vector(0.0f, 0.0f);
 	gravity = Vector(0.0f, -9.8f);
@@ -62,68 +64,168 @@ ParticleEmitter::ParticleEmitter() {
 	endSize = 0.0f;
 
 	particles.clear();
+	//bullets.clear();
 }
 
 ParticleEmitter::~ParticleEmitter() {
 
 }
 
-ParticleEmitter::ParticleEmitter(Vector pos, Vector grav, Vector vel, float t, unsigned int particleCount) {
+ParticleEmitter::ParticleEmitter(float time, unsigned int particleCount) {
 	active = false;
-	position = pos;
-	gravity = grav;
-	velocity = vel;
-	maxLifetime = t;
+	//shootingParticles = true;
+	//shootingBullets = false;
+	position = Vector(0.0f, 0.0f);
+	gravity = Vector(0.0f, -9.8f);
+	velocity = Vector(0.0f, 0.0f);
+	maxLifetime = time;
 	startSize = 0.0f;
-	endSize = 0.5f;
+	endSize = 0.0f;
 
+	//bullets.clear();
 	particles.clear();
 	for (size_t i = 0; i < particleCount; i++) {
 		Particle temp;
 		//temp.lifetime = 0.0f;
-		temp.lifetime = randomFloat(0.0f, t);
+		temp.lifetime = randomFloat(0.0f, time);
 		temp.position = position;
-		temp.active = true;
+		temp.active = false;
 		particles.push_back(temp);
 	}
 }
 
-void ParticleEmitter::Update(float elapsed) {
-	for (size_t i = 0; i < particles.size(); i++) {
-		//particles[i].velocity.x += gravity.x;
-		//particles[i].velocity.y += gravity.y;
-		particles[i].velocity = particles[i].velocity + gravity;
-		particles[i].position = particles[i].position + particles[i].velocity * elapsed;
-		particles[i].lifetime += elapsed;
+//ParticleEmitter::ParticleEmitter(float time, unsigned int bulletCount, SheetSprite sprite) {
+//	active = false;
+//	shootingParticles = false;
+//	shootingBullets = true;
+//	position = Vector(0.0f, 0.0f);
+//	gravity = Vector(0.0f, 0.0f);
+//	velocity = Vector(0.0f, 0.0f);
+//	maxLifetime = time;
+//	startSize = 0.0f;
+//	endSize = 0.0f;
+//	
+//	particles.clear();
+//	bullets.clear();
+//	for (size_t i = 0; i < bulletCount; i++) {
+//		Entity* temp = new Entity();
+//		temp->lifetime = randomFloat(0.0f, time);
+//		temp->position = position;
+//		temp->active = false;
+//		temp->sprite = sprite;
+//		temp->scale_x = 0.5f;
+//		temp->scale_y = 0.5f;
+//		bullets.push_back(temp);
+//	}
+//}
 
-		//particles[i].position.x += particles[i].velocity.x;
-		//particles[i].position.y += particles[i].velocity.y;
+//ParticleEmitter::ParticleEmitter(Vector pos, Vector grav, Vector vel, float t, unsigned int particleCount) {
+//	active = false;
+//	position = pos;
+//	gravity = grav;
+//	velocity = vel;
+//	maxLifetime = t;
+//	startSize = 0.0f;
+//	endSize = 0.5f;
+//
+//	particles.clear();
+//	for (size_t i = 0; i < particleCount; i++) {
+//		Particle temp;
+//		//temp.lifetime = 0.0f;
+//		temp.lifetime = randomFloat(0.0f, t);
+//		temp.position = position;
+//		temp.active = true;
+//		particles.push_back(temp);
+//	}
+//}
 
-		//particles[i].lifetime += elapsed;
-		if (particles[i].lifetime > maxLifetime) {
-			particles[i].velocity = velocity + Vector(randomFloat(-velocityDeviation.x, velocityDeviation.x),
-				randomFloat(-velocityDeviation.y, velocityDeviation.y));
-			particles[i].position = position;
-			particles[i].lifetime = 0.0f;
-			particles[i].active = active;
+void ParticleEmitter::FixedUpdate() {
+	//if (shootingBullets) {
+	//	for (size_t i = 0; i < bullets.size(); i++) {
+	//		if (bullets[i]->active) {
+	//			bullets[i]->velocity = bullets[i]->velocity + gravity;
+	//			bullets[i]->position = bullets[i]->position + bullets[i]->velocity * FIXED_TIMESTEP;
+	//			bullets[i]->lifetime += FIXED_TIMESTEP;
+	//		}
+	//	
+	//	
+
+	//		if (bullets[i]->lifetime > maxLifetime) {
+	//			bullets[i]->velocity = velocity + Vector(randomFloat(-velocityDeviation.x, velocityDeviation.x),
+	//													 randomFloat(-velocityDeviation.y, velocityDeviation.y));
+	//			bullets[i]->bulletReset(position);
+	//			/*bullets[i]->position = position;
+	//			bullets[i]->lifetime = 0.0f;
+	//			bullets[i]->active = false;*/
+	//		}
+	//		//if (bullets[i]->lifetime = 0.0f || bullets[i]->lifetime > maxLifetime) {
+	//			//bullets[i]->active = active;
+	//		//}
+	//	}
+	//}
+	//if (shootingParticles) {
+		for (size_t i = 0; i < particles.size(); i++) {
+			//particles[i].velocity.x += gravity.x;
+			//particles[i].velocity.y += gravity.y;
+			particles[i].velocity = particles[i].velocity + gravity;
+			particles[i].position = particles[i].position + particles[i].velocity * FIXED_TIMESTEP;
+			particles[i].lifetime += FIXED_TIMESTEP;
+		
+
+			//particles[i].position.x += particles[i].velocity.x;
+			//particles[i].position.y += particles[i].velocity.y;
+
+			//particles[i].lifetime += elapsed;
+			if (particles[i].lifetime > maxLifetime) {
+				particles[i].velocity = velocity + Vector(randomFloat(-velocityDeviation.x, velocityDeviation.x),
+														  randomFloat(-velocityDeviation.y, velocityDeviation.y));
+				particles[i].position = position;
+				particles[i].lifetime = 0.0f;
+				particles[i].active = active;
+			}
+			//particles[i].active = active;
 		}
-	}
+	//}
 }
+
+//void ParticleEmitter::shootBullet() {
+//	if (shootingBullets) {
+//		for (size_t i = 0; i < bullets.size(); i++) {
+//			if (!bullets[i]->active) {
+//				bullets[i]->position = position;
+//				bullets[i]->lifetime = 0.0f;
+//				bullets[i]->active = true;
+//				break;
+//			}
+//		}
+//	}
+//}
 
 void ParticleEmitter::Render() {
 	//if (active) {
+	//if (shootingBullets) {
+	//	//glLoadIdentity();
+	//	for (size_t i = 0; i < bullets.size(); i++) {
+	//		//bullets[i]->buildMatrix();
+	//		if (bullets[i]->active) {
+	//			bullets[i]->Render();
+	//		}
+	//	}
+	//}
 
-	vector<float> particleVertices;
+	//if (shootingParticles) {
+		vector<float> particleVertices;
 
-	for (size_t i = 0; i < particles.size(); i++) {
-		if (particles[i].active) {
-			particleVertices.push_back(particles[i].position.x);
-			particleVertices.push_back(particles[i].position.y);
+		for (size_t i = 0; i < particles.size(); i++) {
+			if (particles[i].active) {
+				particleVertices.push_back(particles[i].position.x);
+				particleVertices.push_back(particles[i].position.y);
+			}
 		}
-	}
-	glVertexPointer(2, GL_FLOAT, 0, particleVertices.data());
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glDrawArrays(GL_POINTS, 0, particleVertices.size() / 2);
+		glVertexPointer(2, GL_FLOAT, 0, particleVertices.data());
+		glEnableClientState(GL_VERTEX_ARRAY);
+		glDrawArrays(GL_POINTS, 0, particleVertices.size() / 2);
+	//}
 		//vector<float> particleVertices;
 		//vector<float> particleUVs;
 		//vector<unsigned int> indices;
@@ -157,9 +259,9 @@ void ParticleEmitter::Render() {
 	//}
 
 }
-
-void ParticleEmitter::reset() {
-	for (size_t i = 0; i < particles.size(); i++) {
-		particles[i].position = position;
-	}
-}
+//
+//void ParticleEmitter::reset() {
+//	for (size_t i = 0; i < particles.size(); i++) {
+//		particles[i].position = position;
+//	}
+//}

@@ -1,6 +1,6 @@
 #pragma once
 #include "vector.h"
-using namespace std;
+
 
 class Matrix {
 public:

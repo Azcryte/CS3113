@@ -5,6 +5,27 @@
 #include "matrix.h"
 using namespace std;
 
+float randomFloat(float min, float max){
+	float random = ((float)rand()) / (float)RAND_MAX;
+	return (random*(max - min)) + min;
+}
+
+float lerp(float v0, float v1, float t) {
+	return (1.0f - t)*v0 + t*v1;
+}
+
+float mapValue(float value, float srcMin, float srcMax, float dstMin, float dstMax) {
+	float retVal = dstMin + ((value - srcMin) / (srcMax - srcMin) * (dstMax - dstMin));
+	if (retVal < dstMin) {
+		retVal = dstMin;
+	}
+	if (retVal > dstMax) {
+		retVal = dstMax;
+	}
+	return retVal;
+}
+
+
 class SheetSprite {
 private:
 public:

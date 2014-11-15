@@ -5,11 +5,12 @@
 #include <vector>
 #include "sheetSprite.h"
 #include "matrix.h"
-#include "particleEmitter.h"
-using namespace std;
+//#include "particleEmitter.h"
+//#include "entityEmitter.h"
+//using namespace std;
 
-//#define FIXED_TIMESTEP 0.0166666f
-//#define MAX_TIMESTEPS 6
+#define FIXED_TIMESTEP 0.0166666f
+#define MAX_TIMESTEPS 6
 
 class Entity{
 private:
@@ -24,16 +25,18 @@ public:
 	SheetSprite sprite;
 	Matrix matrix;
 	Vector vector;
-	void setVector();
+	//void setVector();
 
 	//bool collidesWith(Entity* entity);
 
-	void walkRight();
-	void walkLeft();
+	void moveRight();
+	void moveLeft();
 	void setIdle();
 	void jump();
 	void hover();
 	void stopHovering();
+
+	//void shootBullet(Vector target);
 
 	bool facingRight;
 	bool isIdle;
@@ -41,16 +44,15 @@ public:
 	bool isHovering;
 	float elapsed;
 
-	float x;
-	float y;
+	//float x;
+	//float y;
 	float scale_x;
 	float scale_y;
 	float rotation;
 	float speed;
 
-	//Vector velocity;
-	float vel_x;
-	float vel_y;
+	//float velocity.x;
+	//float velocity.y;
 	//Vector acceleration;
 	float acc_x;
 	float acc_y;
@@ -60,6 +62,14 @@ public:
 	float grav_y;
 	float mass;
 
+	Vector position;
+	Vector velocity;
+	float maxLifetime;//
+	float lifetime;
+	bool bulletActive;
+	void bulletShoot(Vector pos);
+	void bulletReset(Vector pos);
+
 	bool isStatic;
 	bool collidedTop;
 	bool collidedBot;
@@ -68,10 +78,10 @@ public:
 	
 };
 
-void Entity::setVector(){
-	//vector = Vector(float(sin(rotation + M_PI / 2.0f)), float(cos(rotation + M_PI / 2.0f)));
-	//vector = Vector(float(cos(rotation + M_PI / 2.0f)), float(sin(rotation + M_PI / 2.0f)));
-}
+//void Entity::setVector(){
+//	//vector = Vector(float(sin(rotation + M_PI / 2.0f)), float(cos(rotation + M_PI / 2.0f)));
+//	//vector = Vector(float(cos(rotation + M_PI / 2.0f)), float(sin(rotation + M_PI / 2.0f)));
+//}
 
 Entity::Entity() {
 	facingRight = false;
@@ -80,23 +90,30 @@ Entity::Entity() {
 	isHovering = false;
 	elapsed = 0.0f;
 
-	x = 0.0f;
-	y = 0.0f;
-	scale_x = 1.0f;
-	scale_y = 1.0f;
+	//x = 0.0f;
+	//y = 0.0f;
+	scale_x = 0.8f;
+	scale_y = 0.8f;
 	rotation = 0.0f;
 	speed = 1.0f;
 
-	//velocity = Vector(0.0f, 0.0f);
-	vel_x = 0.0f;
-	vel_y = 0.0f;
+	//velocity.x = 0.0f;
+	//velocity.y = 0.0f;
 	acc_x = 0.0f;
 	acc_y = 0.0f;
-	fric_x = 0.0f;
-	fric_y = 0.0f;
+	fric_x = 5.0f;
+	fric_y = 5.0f;
 	grav_x = 0.0f;
 	grav_y = -9.8f;
 	mass = 0.0f;
+
+	position = Vector(0.0f, 0.0f);
+	velocity = Vector(0.0f, 0.0f);
+	maxLifetime = 0.0f;
+	lifetime = 0.0f;
+	bulletActive = false;
+	//lifetime = 0.0f;
+	//active = false;
 
 	isStatic = false;
 	collidedTop = false;
@@ -107,38 +124,38 @@ Entity::Entity() {
 
 Entity::~Entity() {}
 
-void Entity::walkRight() {
+void Entity::moveRight() {
 	isIdle = false;
 	facingRight = true;
-	if (vel_x < 0.0f) {
-		vel_x = 0.0f;
+	if (velocity.x < 0.0f) {
+		velocity.x = 0.0f;
 	}
-	if (vel_x < 2.0f) {
+	if (velocity.x < 2.0f) {
 		acc_x = 5.0f * speed;
 	}
 }
 
-void Entity::walkLeft() {
+void Entity::moveLeft() {
 	isIdle = false;
 	facingRight = false;
-	if (vel_x > 0.0f) {
-		vel_x = 0.0f;
+	if (velocity.x > 0.0f) {
+		velocity.x = 0.0f;
 	}
-	if (vel_x > -2.0f) {
+	if (velocity.x > -2.0f) {
 		acc_x = -5.0f * speed;
 	}
 }
 
 void Entity::setIdle() {
 	isIdle = true;
-	vel_x = 0.0f;
+	velocity.x = 0.0f;
 	acc_x = 0.0f;
 }
 
 void Entity::jump() {
 	collidedBot = false;
 	isJumping = true;
-	vel_y = 3.5f;
+	velocity.y = 3.5f;
 }
 
 void Entity::hover() {
@@ -149,24 +166,67 @@ void Entity::hover() {
 
 void Entity::stopHovering() {
 	isHovering = false;
-	//vel_y = 0.0f;
+	//velocity.y = 0.0f;
 	acc_y = 0.0f;
 }
 
+//shoot the bullet at a poin
+
 void Entity::FixedUpdate() {
 
+	if (collidedBot) {
+		isJumping = false;
+		//if (entities[i]->velocity.y < 0.0f) {
+		velocity.y = 0.0f;
+		//}
+	}
+	//if (entities[i]->collidedTop) {
+	//	if (entities[i]->velocity.y > 0.0f) {
+	//		//entities[i]->velocity.y = 0.0f;
+	//	}
+	//}
+	if (collidedRight) {
+		//if (entities[i]->facingRight) {
+		velocity.x = 0.0f;
+		//}
+	}
+	if (collidedLeft) {
+		//if (!entities[i]->facingRight) {
+		velocity.x = 0.0f;
+		//}
+	}
+
+	collidedBot = false;
+	collidedTop = false;
+	collidedRight = false;
+	collidedLeft = false;
+
+	velocity.x += grav_x * FIXED_TIMESTEP;
+	velocity.y += grav_y * FIXED_TIMESTEP;
+
+	velocity.x = lerp(velocity.x, 0.0f, FIXED_TIMESTEP * fric_x);
+	velocity.y = lerp(velocity.y, 0.0f, FIXED_TIMESTEP * fric_y);
+
+	velocity.x += acc_x * FIXED_TIMESTEP;
+	velocity.y += acc_y * FIXED_TIMESTEP;
+
+	if (bulletActive) {
+
+		lifetime += FIXED_TIMESTEP;
+	}
+
 	//setVector();
-	//vector.x *= vel_x;
-	//vector.y *= vel_y;
+	//vector.x *= velocity.x;
+	//vector.y *= velocity.y;
 
-	//vel_x = lerp(vel_x, 0.0f, FIXED_TIMESTEP * fric_x);
-	//vel_y = lerp(vel_y, 0.0f, FIXED_TIMESTEP * fric_y);
+	//velocity.x = lerp(velocity.x, 0.0f, FIXED_TIMESTEP * fric_x);
+	//velocity.y = lerp(velocity.y, 0.0f, FIXED_TIMESTEP * fric_y);
 
-	//vel_x += acc_x * FIXED_TIMESTEP;
-	//vel_y += acc_y * FIXED_TIMESTEP;
+	//velocity.x += acc_x * FIXED_TIMESTEP;
+	//velocity.y += acc_y * FIXED_TIMESTEP;
 
-	//x += vel_x * FIXED_TIMESTEP;
-	//y += vel_y * FIXED_TIMESTEP;
+	//x += velocity.x * FIXED_TIMESTEP;
+	//y += velocity.y * FIXED_TIMESTEP;
 
 	//buildMatrix();
 
@@ -185,6 +245,19 @@ void Entity::Render() {
 	glMultMatrixf(matrix.ml);
 	sprite.draw(scale_x, scale_y);
 	glPopMatrix();
+}
+
+void Entity::bulletShoot(Vector target) {
+	velocity = target;// -position;
+	velocity.normalize();
+	velocity = velocity * speed;
+	bulletActive = true;
+}
+
+void Entity::bulletReset(Vector target) {
+	position = target;
+	lifetime = 0.0f;
+	bulletActive = false;
 }
 
 //bool Entity::collidesWith(Entity* entity) {
@@ -226,8 +299,8 @@ void Entity::buildMatrix() {
 
 	Matrix translate;
 	translate.identity();
-	translate.m[3][0] = x;
-	translate.m[3][1] = y;
+	translate.m[3][0] = position.x;
+	translate.m[3][1] = position.y;
 	translate.m[3][2] = 1;
 	matrix.identity();
 	//matrix = translate * rotate * scale;
