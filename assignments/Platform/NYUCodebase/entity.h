@@ -37,7 +37,6 @@ public:
 	void stopHovering();
 
 	//void shootBullet(Vector target);
-
 	bool facingRight;
 	bool isIdle;
 	bool isJumping;
@@ -64,11 +63,13 @@ public:
 
 	Vector position;
 	Vector velocity;
+
 	float maxLifetime;//
 	float lifetime;
 	bool bulletActive;
 	void bulletShoot(Vector pos);
 	void bulletReset(Vector pos);
+	bool bulletShot = false;
 
 	bool isStatic;
 	bool collidedTop;
@@ -76,6 +77,9 @@ public:
 	bool collidedLeft;
 	bool collidedRight;
 	
+	bool dead;
+	float timeSinceLastJump;
+	float jumpTimeGap;
 };
 
 //void Entity::setVector(){
@@ -114,12 +118,16 @@ Entity::Entity() {
 	bulletActive = false;
 	//lifetime = 0.0f;
 	//active = false;
-
+	
 	isStatic = false;
 	collidedTop = false;
 	collidedBot = false;
 	collidedLeft = false;
 	collidedRight = false;
+	
+	dead = false;
+	timeSinceLastJump = 0.0f;
+	jumpTimeGap = 0.0f;
 }
 
 Entity::~Entity() {}
@@ -174,27 +182,27 @@ void Entity::stopHovering() {
 
 void Entity::FixedUpdate() {
 
-	if (collidedBot) {
-		isJumping = false;
-		//if (entities[i]->velocity.y < 0.0f) {
-		velocity.y = 0.0f;
-		//}
-	}
-	//if (entities[i]->collidedTop) {
-	//	if (entities[i]->velocity.y > 0.0f) {
-	//		//entities[i]->velocity.y = 0.0f;
-	//	}
+	//if (collidedBot) {
+	//	isJumping = false;
+	//	//if (entities[i]->velocity.y < 0.0f) {
+	//	velocity.y = 0.0f;
+	//	//}
 	//}
-	if (collidedRight) {
-		//if (entities[i]->facingRight) {
-		velocity.x = 0.0f;
-		//}
-	}
-	if (collidedLeft) {
-		//if (!entities[i]->facingRight) {
-		velocity.x = 0.0f;
-		//}
-	}
+	////if (entities[i]->collidedTop) {
+	////	if (entities[i]->velocity.y > 0.0f) {
+	////		//entities[i]->velocity.y = 0.0f;
+	////	}
+	////}
+	//if (collidedRight) {
+	//	//if (entities[i]->facingRight) {
+	//	velocity.x = 0.0f;
+	//	//}
+	//}
+	//if (collidedLeft) {
+	//	//if (!entities[i]->facingRight) {
+	//	velocity.x = 0.0f;
+	//	//}
+	//}
 
 	collidedBot = false;
 	collidedTop = false;
@@ -211,9 +219,10 @@ void Entity::FixedUpdate() {
 	velocity.y += acc_y * FIXED_TIMESTEP;
 
 	if (bulletActive) {
-
 		lifetime += FIXED_TIMESTEP;
 	}
+
+	elapsed += FIXED_TIMESTEP;
 
 	//setVector();
 	//vector.x *= velocity.x;

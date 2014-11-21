@@ -10,6 +10,14 @@ float randomFloat(float min, float max){
 	return (random*(max - min)) + min;
 }
 
+bool randomBool() {
+	return rand() % 2 == 1;
+}
+
+int randomSign() {
+	return -1 + (2 * (rand() % 2));
+}
+
 float lerp(float v0, float v1, float t) {
 	return (1.0f - t)*v0 + t*v1;
 }

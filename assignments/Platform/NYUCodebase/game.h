@@ -17,16 +17,19 @@
 
 #define FIXED_TIMESTEP 0.0166666f
 #define MAX_TIMESTEPS 6
-#define NUM_ASTEROIDS 13
-#define TILE_SIZE 0.1f
+//#define NUM_ASTEROIDS 13
 
 #define CHANCE_TO_START_ALIVE 0.6f
 #define DEATH_LIMIT 3
 #define BIRTH_LIMIT 4
 #define NUM_SIMULATION_STEPS 20
-
 #define SPRITE_COUNT_X 16
 #define SPRITE_COUNT_Y 8
+#define TILE_SIZE 0.1f
+
+#define MAX_ENEMIES 5
+
+enum GameState{ MAIN_MENU, GAME_PLAY, GAME_PAUSE, GAME_OVER};
 
 class Game{
 public:
@@ -37,18 +40,26 @@ public:
 	bool UpdateAndRender();
 	void Render();
 	void RenderLevel();
+	void RenderMainMenu();
+	void RenderGame();
+	void RenderGameOver();
 	void Update(float elapsed);
 	void FixedUpdate();
 private:
 	const Uint8* keys;
+	GameState state;
 	bool done;
+	bool paused;
+	int score;
 	float lastFrameTicks;
 	float timeLeftOver;
 	float timeElapsed;
+	float timeSinceLastSpawn;
 	SDL_Window* displayWindow;
 	GLuint spriteSheet;
 	GLuint spriteSheet2;
 	GLuint spriteSheet3;
+	GLuint font;
 
 	Entity* player;
 	vector<Entity*> enemies;
@@ -81,6 +92,7 @@ private:
 	bool** doSimulationStep(bool** oldMap);
 	int countAliveNeighbors(bool** map, int x, int y);
 
+	Vector checkForValidSpawnLocation(int type);
 };
 
 Game::Game() {
@@ -88,14 +100,17 @@ Game::Game() {
 
 	keys = SDL_GetKeyboardState(NULL);
 
+	state = MAIN_MENU;
 	done = false;
+	score = 0;
 	lastFrameTicks = 0.0f;
 	timeLeftOver = 0.0f;
+	timeSinceLastSpawn = 0.0f;
 
 	srand(static_cast <unsigned> (time(0)));
 
-	mapHeight = 30;
-	mapWidth = 30;
+	mapHeight = 100;
+	mapWidth = 100;
 	levelData = new unsigned char*[mapHeight];
 	for (int i = 0; i < mapHeight; ++i) {
 		levelData[i] = new unsigned char[mapWidth];
@@ -105,17 +120,18 @@ Game::Game() {
 	//for (int y = 0; y < mapHeight; y++) {
 	//	for (int x = 0; x < mapWidth; x++) {
 	//		levelData[y][x] = 3;
-	//	}
+	//	}s
 	//}
-	buildLevel();
-
+	//buildLevel();
+	
 	spriteSheet2 = LoadTexture("arne_sprites.png");
 	spriteSheet3 = LoadTexture("characters_1.png");
+	font = LoadTexture("font.png");
 
 	Matrix initial;
 	glLoadMatrixf(initial.ml);
 
-	reset();
+	//reset();
 }
 
 Game::~Game() {
@@ -161,36 +177,78 @@ bool Game::UpdateAndRender() {
 	//else {
 	//	ParticleEmitterTest.active = false;
 	////}
-	if (event.button.button == 1) {
-		//gun1->bulletActive = true;
-		if (gun1->lifetime > gun1->maxLifetime) {
-			gun1->bulletReset(player->position);
+	if (keys[SDL_SCANCODE_1]) { state = MAIN_MENU; }
+	else if (keys[SDL_SCANCODE_2]) { state = GAME_PLAY; }
+	else if (keys[SDL_SCANCODE_3]) { state = GAME_PAUSE; }
+	else if (keys[SDL_SCANCODE_4]) { state = GAME_OVER; }
+	switch (state) {
+	case MAIN_MENU:
+		if (event.button.button == 1 && event.type == SDL_MOUSEBUTTONDOWN) {
+			//Matrix initial;
+			//glLoadMatrixf(initial.ml);
+			reset();
+			state = GAME_PLAY;
 		}
-		if (!gun1->bulletActive) {
-			gun1->bulletShoot( Vector(((((float)event.motion.x / 800.0f) * 2.666f) - 1.333f),
-							           (((float)(600 - event.motion.y) / 600.0f) * 2.0f) - 1.0f));
+		break;
+	case GAME_PLAY:
+		if (event.button.button == 1 && event.type == SDL_MOUSEBUTTONDOWN) {
+			if (!gun1->bulletActive) {
+				gun1->bulletReset(player->position);
+				gun1->bulletShoot(Vector(((((float)event.motion.x / 800.0f) * 2.666f) - 1.333f),
+					(((float)(600 - event.motion.y) / 600.0f) * 2.0f) - 1.0f));
+			}
 		}
-		//BulletShooterTest.bullets[0].active = true;
-	}
-	if (keys[SDL_SCANCODE_UP]) {
-		player->hover();
-		//if (!player->isJumping) {
-		//	player->jump();
-		//}
-	} 
-	else if (player->isHovering) {
-		player->stopHovering();
-	}
+		if (keys[SDL_SCANCODE_UP]) {
+			player->hover();
+			//if (!player->isJumping) {
+			//	player->jump();
+			//}
+		}
+		else if (player->isHovering) {
+			player->stopHovering();
+		}
 
-	if (keys[SDL_SCANCODE_RIGHT]) {
-		player->moveRight();
+		if (keys[SDL_SCANCODE_RIGHT]) {
+			player->moveRight();
+			//for (size_t i = 0; i < MAX_ENEMIES; i++) {
+			//	enemies[i]->moveRight();
+			//}
+		}
+		else if (keys[SDL_SCANCODE_LEFT]) {
+			player->moveLeft();
+			//for (size_t i = 0; i < MAX_ENEMIES; i++) {
+			//	enemies[i]->moveLeft();
+			//}
+		}
+		else {
+			player->setIdle();
+			//for (size_t i = 0; i < MAX_ENEMIES; i++) {
+			//	enemies[i]->setIdle();
+			//}
+		}
+
+		if (keys[SDL_SCANCODE_P]) {
+			paused = true;
+			state = GAME_PAUSE;
+			//gun1->bulletActive = false;
+		}
+		break;
+	case GAME_PAUSE:
+		if (keys[SDL_SCANCODE_O]) {
+			paused = false;
+			state = GAME_PLAY;
+			//gun1->bulletActive = true;
+		}
+		break;
+	case GAME_OVER:
+		if (event.button.button == 3 && event.type == SDL_MOUSEBUTTONDOWN) {
+			state = MAIN_MENU;
+		}
+		break;
 	}
-	else if (keys[SDL_SCANCODE_LEFT]) {
-		player->moveLeft();
-	}
-	else {
-		player->setIdle();
-	}
+	//if (keys[SDL_SCANCODE_R] /*&& event.type == SDL_KEYDOWN*/) {
+	//	reset();
+	//}
 
 	float fixedElapsed = elapsed + timeLeftOver;
 	if (fixedElapsed > FIXED_TIMESTEP * MAX_TIMESTEPS) {
@@ -208,36 +266,20 @@ bool Game::UpdateAndRender() {
 }
 
 void Game::Render() {
-	glClear(GL_COLOR_BUFFER_BIT);
-	float trans_x = -player->position.x;
-	float trans_y = -player->position.y;
-	////if (trans_y > 0.0f) {
-	////	trans_y = 0.0f;
-	////}
-	//if (trans_y < 1.0f) {
-	//	trans_y = 1.0f;
-	//}
-	//if (trans_x > -1.0f) {
-	//	trans_x = -1.0f;
-	//}
-	////if (trans_x < -2.0f) {
-	////	trans_x = -2.0f;
-	////}
-
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	glTranslatef(trans_x, trans_y, 0.0f);
-
-	//for (size_t i = 0; i < asteroids.size(); i++) {
-	//	asteroids[i]->Render();
-	//}
-	RenderLevel();
-	player->Render();
-	if (gun1->bulletActive) {
-		gun1->Render();
+	switch (state) {
+	case MAIN_MENU:
+		RenderMainMenu();
+		break;
+	case GAME_PLAY:
+		RenderGame();
+		break;
+	case GAME_PAUSE:
+		RenderGame();
+		break;
+	case GAME_OVER:
+		RenderGameOver();
+		break;
 	}
-	ParticleEmitterTest.Render();
-	//BulletShooterTest.Render();
 	SDL_GL_SwapWindow(displayWindow);
 }
 
@@ -257,7 +299,8 @@ void Game::RenderLevel() {
 		for (int x = 0; x < mapWidth; x++) {
 			if (levelData[y][x] != 12 &&
 				abs(x - grid_x) < 12 &&
-				abs(y - grid_y) < 12 )
+				abs(y - grid_y) < 12 
+				)
 			{
 				float adjust = 0.001f;
 				float u = (float)(((int)levelData[y][x]) % SPRITE_COUNT_X) / (float)SPRITE_COUNT_X;
@@ -298,6 +341,71 @@ void Game::RenderLevel() {
 	glPopMatrix();
 }
 
+void Game::RenderMainMenu() {
+	glLoadIdentity();
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	drawText(font, "<Game Name>", 0.3f, -0.13f, -0.85f, 0.7f);
+	drawText(font, "Click to Start Game", 0.1f, -0.05f, -0.42f, 0.2f);
+	drawText(font, "WASD to move", 0.1f, -0.05f, -0.23, -0.2f);
+	drawText(font, "mouse to aim, left click to shoot", 0.1f, -0.05f, -0.8f, -0.4f);
+	drawText(font, "bullets can break blocks", 0.1f, -0.05f, -0.53f, -0.6f);
+	drawText(font, "press 1 to restart game", 0.1f, -0.05f, -0.5f, -0.8f);
+}
+
+void Game::RenderGame() {
+	glLoadIdentity();
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	float trans_x = -player->position.x;
+	float trans_y = -player->position.y;
+	////if (trans_y > 0.0f) {
+	////	trans_y = 0.0f;
+	////}
+	//if (trans_y < 1.0f) {
+	//	trans_y = 1.0f;
+	//}
+	//if (trans_x > -1.0f) {
+	//	trans_x = -1.0f;
+	//}
+	////if (trans_x < -2.0f) {
+	////	trans_x = -2.0f;
+	////}
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glTranslatef(trans_x, trans_y, 0.0f);
+
+	//for (size_t i = 0; i < asteroids.size(); i++) {
+	//	asteroids[i]->Render();
+	//}
+	RenderLevel();
+	player->Render();
+	if (gun1->bulletActive) {
+		gun1->Render();
+	}
+	for (size_t i = 0; i < MAX_ENEMIES; i++) {
+		if (!enemies[i]->dead) {
+			enemies[i]->Render();
+		}
+	}
+	ParticleEmitterTest.Render();
+	drawText(font, "Score:" + to_string(score), 0.1f, -0.05f, -0.95f, 0.95f);
+	//BulletShooterTest.Render();
+}
+
+void Game::RenderGameOver() {
+	glLoadIdentity();
+	glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	drawText(font, "GAME OVER", 0.3f, -0.1f, -0.8f, 0.45f);
+	drawText(font, "Final Score:", 0.2f, -0.1f, -0.5f, 0.1f);
+	drawText(font, to_string(score), 0.2f, -0.1f, -0.15f, -0.1f);
+	drawText(font, "Right click to return to Main Menu", 0.1f, -0.05f, -0.8f, -0.6f);
+}
+
 void Game::Update(float elapsed) {
 	//player->FixedUpdate();
 	//for (int i = 0; i < asteroids.size(); i++) {
@@ -307,120 +415,236 @@ void Game::Update(float elapsed) {
 
 void Game::FixedUpdate() {
 	timeElapsed += FIXED_TIMESTEP;
+	timeSinceLastSpawn += FIXED_TIMESTEP;
 
-	//player
-	player->FixedUpdate();
-	player->position.y += player->velocity.y * FIXED_TIMESTEP;
-	doLevelCollisionY(player);
-	player->position.x += player->velocity.x * FIXED_TIMESTEP;
-	doLevelCollisionX(player);
+	if (state == GAME_PLAY) {
+		//player
+		player->FixedUpdate();
+		player->position.y += player->velocity.y * FIXED_TIMESTEP;
+		doLevelCollisionY(player);
+		player->position.x += player->velocity.x * FIXED_TIMESTEP;
+		doLevelCollisionX(player);
 
-	float animation;
-	player->elapsed += FIXED_TIMESTEP;
-	animation = fmod(player->elapsed, FIXED_TIMESTEP * 40.0f);
-	if (player->facingRight) {
-		/*if (player->velocity.x < 0.2f) {
-		player->sprite.frame = 4;
-		}
-		else */if (animation < FIXED_TIMESTEP * 10.0f) {
-		player->sprite.frame = 3;
-		}
-		else if (animation < FIXED_TIMESTEP * 20.0f) {
+		float animation;
+		player->elapsed += FIXED_TIMESTEP;
+		animation = fmod(player->elapsed, FIXED_TIMESTEP * 100.0f);
+		if (player->facingRight) {
+			/*if (player->velocity.x < 0.2f) {
 			player->sprite.frame = 4;
+			}
+			else */if (animation < FIXED_TIMESTEP * 25.0f) {
+			player->sprite.frame = 3;
+			}
+			else if (animation < FIXED_TIMESTEP * 50.0f) {
+				player->sprite.frame = 4;
+			}
+			else if (animation < FIXED_TIMESTEP * 75.0f) {
+				player->sprite.frame = 5;
+			}
+			else {
+				player->sprite.frame = 4;
+			}
 		}
-		else if (animation < FIXED_TIMESTEP * 30.0f) {
-			player->sprite.frame = 5;
+		else if (!player->facingRight) {
+			/*if (player->velocity.x > -0.2f) {
+			player->sprite.frame = 1;
+			}
+			else */if (animation < FIXED_TIMESTEP * 25.0f) {
+			player->sprite.frame = 0;
+			}
+			else if (animation < FIXED_TIMESTEP * 50.0f) {
+				player->sprite.frame = 1;
+			}
+			else if (animation < FIXED_TIMESTEP * 75.0f) {
+				player->sprite.frame = 2;
+			}
+			else {
+				player->sprite.frame = 1;
+			}
+		}
+
+		//particle emitter test
+		if (player->isIdle && fabs(player->velocity.y) < 0.2  && !player->isHovering) {
+			ParticleEmitterTest.active = false;
 		}
 		else {
-			player->sprite.frame = 4;
+			ParticleEmitterTest.active = true;
 		}
-	}
-	else if (!player->facingRight) {
-		/*if (player->velocity.x > -0.2f) {
-		player->sprite.frame = 1;
+		ParticleEmitterTest.position = Vector(player->position.x, player->position.y);
+		ParticleEmitterTest.velocity = Vector(-player->velocity.x * 0.3f, -player->velocity.y * 0.3f);
+		if (player->isHovering) {
+			ParticleEmitterTest.velocity = ParticleEmitterTest.velocity + Vector(0.0f, -0.5f);
 		}
-		else */if (animation < FIXED_TIMESTEP * 10.0f) {
-		player->sprite.frame = 0;
-		}
-		else if (animation < FIXED_TIMESTEP * 20.0f) {
-			player->sprite.frame = 1;
-		}
-		else if (animation < FIXED_TIMESTEP * 30.0f) {
-			player->sprite.frame = 2;
-		}
-		else {
-			player->sprite.frame = 1;
-		}
-	}
+		ParticleEmitterTest.FixedUpdate();
 
-	//enemies
-	for (size_t i = 0; i < enemies.size(); i++) {
-		enemies[i]->FixedUpdate();
+		//enemies
+		for (size_t i = 0; i < MAX_ENEMIES; i++) {
+			if (fabs(enemies[i]->position.x - player->position.x) > 4.0f ||
+				fabs(enemies[i]->position.y - player->position.y) > 3.0f) {
+				enemies[i]->dead = true;
+			}
 
-		// ****** put in fixed update v *******
-		
-		enemies[i]->position.y += enemies[i]->velocity.y * FIXED_TIMESTEP;
-		for (size_t j = 0; j < enemies.size(); j++) {
-			if (checkCollision(enemies[i], enemies[j]) && enemies[i] != enemies[j]) {
-				float yPenetration = fabs(fabs(enemies[j]->position.y - enemies[i]->position.y) - (enemies[i]->sprite.height * enemies[i]->scale_y) / 2.0f - (enemies[j]->sprite.height * enemies[j]->scale_y) / 2.0f);
-				if (enemies[i]->position.y > enemies[j]->position.y) {
-					enemies[i]->position.y += yPenetration + 0.001f;
-					enemies[i]->collidedBot = true;
+			if (enemies[i]->dead && timeSinceLastSpawn > 2.0f) {
+				enemies[i]->dead = false;
+				float scale = randomFloat(0.8f, 1.2f);
+				enemies[i]->scale_x = scale;
+				enemies[i]->scale_y = scale;
+				enemies[i]->position = checkForValidSpawnLocation(1);
+				enemies[i]->velocity.x = randomFloat(8.0f, 11.0f);
+				enemies[i]->jumpTimeGap = randomFloat(1.0f, 3.0f);
+				timeSinceLastSpawn = 0.0f;
+			}
+
+			if (!enemies[i]->dead) {
+				if (checkCollision(enemies[i], player)) {
+					state = GAME_OVER;
 				}
-				else if (enemies[i]->position.y < enemies[j]->position.y) {
-					enemies[i]->position.y -= yPenetration + 0.001f;
-					enemies[i]->collidedTop = true;
+
+				if (enemies[i]->facingRight) {
+					enemies[i]->velocity.x = 0.5f;
+				}
+				else {
+					enemies[i]->velocity.x = -0.5f;
+				}
+
+				// ****** put in fixed update v *******
+
+				if (enemies[i]->collidedBot) {
+					enemies[i]->isJumping = false;
+					//if (entities[i]->velocity.y < 0.0f) {
+					enemies[i]->velocity.y = 0.0f;
+					//}
+				}
+				if (enemies[i]->collidedTop) {
+					if (enemies[i]->velocity.y > 0.0f) {
+						//entities[i]->velocity.y = 0.0f;
+					}
+				}
+				if (enemies[i]->collidedRight) {
+					if (enemies[i]->facingRight) {
+						enemies[i]->facingRight = false;
+						//enemies[i]->velocity.x = 0.0f;
+					}
+				}
+				if (enemies[i]->collidedLeft) {
+					if (!enemies[i]->facingRight) {
+						enemies[i]->facingRight = true;
+						//enemies[i]->velocity.x = 0.0f;
+					}
+				}
+				if (enemies[i]->timeSinceLastJump > enemies[i]->jumpTimeGap) {
+					if (!enemies[i]->isJumping) {
+						enemies[i]->jump();
+					}
+					enemies[i]->timeSinceLastJump = 0.0f;
+				}
+
+				enemies[i]->FixedUpdate();
+				enemies[i]->timeSinceLastJump += FIXED_TIMESTEP;
+
+				enemies[i]->position.y += enemies[i]->velocity.y * FIXED_TIMESTEP;
+				//for (size_t j = 0; j < enemies.size(); j++) {
+				//	if (checkCollision(enemies[i], enemies[j]) && enemies[i] != enemies[j]) {
+				//		float yPenetrationsco = fabs(fabs(enemies[j]->position.y - enemies[i]->position.y) - (enemies[i]->sprite.height * enemies[i]->scale_y) / 2.0f - (enemies[j]->sprite.height * enemies[j]->scale_y) / 2.0f);
+				//		if (enemies[i]->position.y > enemies[j]->position.y) {
+				//			enemies[i]->position.y += yPenetration + 0.001f;
+				//			enemies[i]->collidedBot = true;
+				//		}
+				//		else if (enemies[i]->position.y < enemies[j]->position.y) {
+				//			enemies[i]->position.y -= yPenetration + 0.001f;
+				//			enemies[i]->collidedTop = true;
+				//		}
+				//	}
+				//}
+				doLevelCollisionY(enemies[i]);
+
+				enemies[i]->position.x += enemies[i]->velocity.x * FIXED_TIMESTEP;
+				//for (size_t j = 0; j < enemies.size(); j++) {
+				//	if (checkCollision(enemies[i], enemies[j]) && enemies[i] != enemies[j]) {
+				//		float xPenetration = fabs(fabs(enemies[j]->position.x - enemies[i]->position.x) - (enemies[i]->sprite.width * enemies[i]->scale_x) / 2.0f - (enemies[j]->sprite.width * enemies[j]->scale_x) / 2.0f);
+				//		if (enemies[i]->position.x > enemies[j]->position.x) {
+				//			enemies[i]->position.x += xPenetration + 0.001f;
+				//			enemies[i]->collidedLeft = true;
+				//		}
+				//		else if (enemies[i]->position.x < enemies[j]->position.x) {
+				//			enemies[i]->position.x -= xPenetration + 0.001f;
+				//			enemies[i]->collidedRight = true;
+				//		}
+				//	}
+				//}
+				doLevelCollisionX(enemies[i]);
+
+				enemies[i]->elapsed += FIXED_TIMESTEP;
+				animation = fmod(enemies[i]->elapsed, FIXED_TIMESTEP * 60.0f);
+				if (enemies[i]->facingRight) {
+					/*if (player->velocity.x < 0.2f) {
+					player->sprite.frame = 4;
+					}
+					else */if (animation < FIXED_TIMESTEP * 15.0f) {
+					enemies[i]->sprite.frame = 3;
+					}
+					else if (animation < FIXED_TIMESTEP * 30.0f) {
+						enemies[i]->sprite.frame = 4;
+					}
+					else if (animation < FIXED_TIMESTEP * 45.0f) {
+						enemies[i]->sprite.frame = 5;
+					}
+					else {
+						enemies[i]->sprite.frame = 4;
+					}
+				}
+				else if (!enemies[i]->facingRight) {
+					/*if (player->velocity.x > -0.2f) {
+					player->sprite.frame = 1;
+					}
+					else */if (animation < FIXED_TIMESTEP * 15.0f) {
+					enemies[i]->sprite.frame = 0;
+					}
+					else if (animation < FIXED_TIMESTEP * 30.0f) {
+						enemies[i]->sprite.frame = 1;
+					}
+					else if (animation < FIXED_TIMESTEP * 45.0f) {
+						enemies[i]->sprite.frame = 2;
+					}
+					else {
+						enemies[i]->sprite.frame = 1;
+					}
 				}
 			}
 		}
-		doLevelCollisionY(enemies[i]);
 
-		enemies[i]->position.x += enemies[i]->velocity.x * FIXED_TIMESTEP;
-		for (size_t j = 0; j < enemies.size(); j++) {
-			if (checkCollision(enemies[i], enemies[j]) && enemies[i] != enemies[j]) {
-				float xPenetration = fabs(fabs(enemies[j]->position.x - enemies[i]->position.x) - (enemies[i]->sprite.width * enemies[i]->scale_x) / 2.0f - (enemies[j]->sprite.width * enemies[j]->scale_x) / 2.0f);
-				if (enemies[i]->position.x > enemies[j]->position.x) {
-					enemies[i]->position.x += xPenetration + 0.001f;
-					enemies[i]->collidedLeft = true;
-				}
-				else if (enemies[i]->position.x < enemies[j]->position.x) {
-					enemies[i]->position.x -= xPenetration + 0.001f;
-					enemies[i]->collidedRight = true;
+		//gun
+		if (gun1->bulletActive) {
+			gun1->FixedUpdate();
+			gun1->position.y += gun1->velocity.y * FIXED_TIMESTEP;
+			//doLevelCollisionY(gun1);
+			gun1->position.x += gun1->velocity.x * FIXED_TIMESTEP;
+			//doLevelCollisionX(gun1);
+			for (size_t i = 0; i < enemies.size(); i++) {
+				if (!enemies[i]->dead) {
+					if (checkCollision(gun1, enemies[i])) {
+						gun1->bulletReset(player->position);
+						enemies[i]->dead = true;
+						score += 100;
+					}
 				}
 			}
+			if (checkPointForGridCollisionX(gun1->position.x, gun1->position.y) != 0.0f || checkPointForGridCollisionY(gun1->position.x, gun1->position.y) != 0.0f) {
+				int grid_x, grid_y;
+				worldToTileCoordinates(gun1->position.x, gun1->position.y, &grid_x, &grid_y);
+				if (levelData[grid_y][grid_x] != 3) {
+					levelData[grid_y][grid_x] = 12;
+				}
+				gun1->bulletReset(player->position);
+			}
+			if (gun1->lifetime > gun1->maxLifetime) {
+				gun1->bulletActive = false;
+			}
 		}
-		doLevelCollisionX(enemies[i]);
 	}
 
-	//gun
-	if (gun1->bulletActive) {
-		gun1->FixedUpdate();
-		gun1->position.y += gun1->velocity.y * FIXED_TIMESTEP;
-		//doLevelCollisionY(gun1);
-		gun1->position.x += gun1->velocity.x * FIXED_TIMESTEP;
-		//doLevelCollisionX(gun1);
-		if (checkPointForGridCollisionX(gun1->position.x, gun1->position.y) != 0.0f || checkPointForGridCollisionY(gun1->position.x, gun1->position.y) != 0.0f) {
-			gun1->bulletReset(player->position);
-		}
-		if (gun1->lifetime > gun1->maxLifetime) {
-			gun1->bulletActive = false;
-		}
-	}
 
 	//particleEmitterTest
-	if (player->isIdle && fabs(player->velocity.y) < 0.2  && !player->isHovering) {
-		ParticleEmitterTest.active = false;
-	}
-	else {
-		ParticleEmitterTest.active = true;
-		//ParticleEmitterTest.areset();
-	}
-	ParticleEmitterTest.position = Vector(player->position.x, player->position.y);
-	ParticleEmitterTest.velocity = Vector(-player->velocity.x * 0.3f, -player->velocity.y * 0.3f );
-	if (player->isHovering) {
-		ParticleEmitterTest.velocity = ParticleEmitterTest.velocity + Vector(0.0f, -0.5f);
-	}
-	ParticleEmitterTest.FixedUpdate();
 	
 
 	////bulletshooter
@@ -470,17 +694,21 @@ void Game::FixedUpdate() {
 void Game::reset() {
 	//grav_x = 0.0f;
 	//grav_y = -9.8f;
+	paused = false;
+	score = 0;
+
 	buildLevel();
 	enemies.clear();
 
 	player = new Entity();
 	float adjust_u = 0.2f / 192.0f;
 	float adjust_v = 0.2f / 128.0f;
-	vector<float> u = { 6.0f / 12.0f + adjust_u, 7.0f / 12.0f + adjust_u, 8.0f / 12.0f + adjust_u,
+	vector<float> player_u = { 6.0f / 12.0f + adjust_u, 7.0f / 12.0f + adjust_u, 8.0f / 12.0f + adjust_u,
 						6.0f / 12.0f + adjust_u, 7.0f / 12.0f + adjust_u, 8.0f / 12.0f + adjust_u};
-	vector<float> v = { 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v,
+	vector<float> player_v = { 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v,
 						6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v };
-	player->sprite = SheetSprite(spriteSheet3, u, v, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v);
+	player->sprite = SheetSprite(spriteSheet3, player_u, player_v, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v);
+	player->dead = false;
 	float playerSpawn_x, playerSpawn_y;
 	tileToWorldCoordinates(spawn_x, spawn_y, &playerSpawn_x, &playerSpawn_y);
 	player->position.y += playerSpawn_y;
@@ -491,9 +719,9 @@ void Game::reset() {
 	//entities.push_back(player);
 
 	gun1 = new Entity();
-	vector<float> u2 = { 6.0f / 12.0f + adjust_u };
-	vector<float> v2 = { 5.0f / 8.0f + adjust_v };
-	gun1->sprite = SheetSprite(spriteSheet3, u2, v2, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v);
+	vector<float> gun_u = { 6.0f / 12.0f + adjust_u };
+	vector<float> gun_v = { 5.0f / 8.0f + adjust_v };
+	gun1->sprite = SheetSprite(spriteSheet3, gun_u, gun_v, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v);
 	gun1->position = player->position;
 	gun1->scale_x = 0.5f;
 	gun1->scale_y = 0.5f;
@@ -504,14 +732,33 @@ void Game::reset() {
 	gun1->grav_y = 0.0f;
 	gun1->maxLifetime = 0.5f;
 
-
-
 	ParticleEmitterTest = ParticleEmitter(2.0f, 300);
 	ParticleEmitterTest.position = Vector(player->position.x, player->position.y);
 	ParticleEmitterTest.gravity = Vector(0.0f, 0.0f);
 	ParticleEmitterTest.velocity = Vector(0.0f, 0.0f);
 	//ParticleEmitterTest = ParticleEmitter(Vector(player->x, player->y), Vector(0.0f, 0.0f), Vector(0.0f, 0.0f), 2.0f, 300);
 	ParticleEmitterTest.velocityDeviation = Vector(0.3f, 0.3f);
+
+	//enemy
+	vector<float> enemy_u = { 3.0f / 12.0f + adjust_u, 4.0f / 12.0f + adjust_u, 5.0f / 12.0f + adjust_u,
+		3.0f / 12.0f + adjust_u, 4.0f / 12.0f + adjust_u, 5.0f / 12.0f + adjust_u };
+	vector<float> enemy_v = { 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v,
+		6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v, };
+	SheetSprite enemyTexture = SheetSprite(spriteSheet3, enemy_u, enemy_v, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v);
+	for (int i = 0; i < MAX_ENEMIES; i++) {
+		Entity* enemy = new Entity();
+		enemy->sprite = enemyTexture;
+		float scale = randomFloat(0.8f, 1.2f);
+		enemy->scale_x = scale;
+		enemy->scale_y = scale;
+		enemy->grav_y = -9.8f;
+		enemy->position = checkForValidSpawnLocation(1);
+		enemy->velocity.x = randomFloat(8.0f, 11.0f);
+		enemy->jumpTimeGap = randomFloat(1.0f, 3.0f);
+		//enemy->velocity = Vector(9.0f, 0.0f);
+		enemies.push_back(enemy);
+	}
+
 
 	//vector<float> u2 = { 6.0f / 12.0f + adjust_u };
 	//vector<float> v2 = { 5.0f / 8.0f + adjust_v };
@@ -548,9 +795,9 @@ bool Game::isSolid(unsigned char tile) {
 	case 2:
 		return true;
 		break;
-	//case 3:
-	//	return true;
-	//	break;
+	case 3:
+		return true;
+		break;
 	case 16:
 		return true;
 		break;
@@ -655,6 +902,7 @@ bool Game::checkCollision(Entity* a, Entity* b) {
 void Game::worldToTileCoordinates(float x, float y, int* grid_x, int* grid_y) {
 	*grid_x = (int)(x / TILE_SIZE);
 	*grid_y = (int)(-y / TILE_SIZE);
+
 }
 
 void Game::tileToWorldCoordinates(int grid_x, int grid_y, float* x, float* y) {
@@ -885,4 +1133,51 @@ int Game::countAliveNeighbors(bool** map, int x, int y) {
 		}
 	}
 	return count;
+}
+
+/*
+	Type 1
+		enemy spawn
+*/
+Vector Game::checkForValidSpawnLocation(int type) {
+	float x = 0.0f;
+	float y = 0.0f;
+	int grid_x = 0;
+	int grid_y = 0;
+	if (type == 1) {
+		//while leveldata[grid coord] IS solid or leveldata[gridcoord, y-1] is NOT solid or x < 0, x > width-1, y < 0, y > height-1
+		//	if rand(0.0, 1.0) < 2.5
+		//		x = player->pos.x - rand(1.33, 1.6) 
+		//		y = player->pos.y - rand(1.0, 1.2)
+		//	x, y to grid coordinates
+		//while (isSolid(levelData[grid_x][grid_y]) || !isSolid(levelData[grid_x][grid_y - 1]))
+		while ( isSolid(levelData[grid_y][grid_x]) || !isSolid(levelData[grid_y - 1][grid_x]) ||
+				grid_x < 1 || grid_x > mapWidth - 1 || grid_y < 1 || grid_y > mapHeight - 1) {
+			float rand = randomFloat(0.0f, 1.0f);
+			if (rand < 0.25f) {
+				x = player->position.x - randomFloat(0.0f, 2.0f);
+				y = player->position.y - randomFloat(1.0f, 1.5f);
+			}
+			else if (rand < 0.50f) {
+				x = player->position.x - randomFloat(1.33f, 2.0f);
+				y = player->position.y + randomFloat(1.0f, 1.5f);
+			}
+			else if (rand < 0.75f) {
+				x = player->position.x + randomFloat(1.33f, 2.0f);
+				y = player->position.y + randomFloat(1.0f, 1.5f);
+			}
+			else {
+				x = player->position.x + randomFloat(0.0f, 2.0f);
+				y = player->position.y - randomFloat(1.0f, 1.5f);
+			}
+
+			int temp_x, temp_y;
+			worldToTileCoordinates(x, y, &temp_x, &temp_y);
+			if (temp_x > 0 && temp_x < mapWidth - 1 && temp_y > 0 && temp_y < mapHeight - 1) {
+				grid_x = temp_x;
+				grid_y = temp_y;
+			}
+		}
+		return Vector(x, y);
+	}
 }
