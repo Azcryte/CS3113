@@ -18,10 +18,6 @@ int randomSign() {
 	return -1 + (2 * (rand() % 2));
 }
 
-float lerp(float v0, float v1, float t) {
-	return (1.0f - t)*v0 + t*v1;
-}
-
 float mapValue(float value, float srcMin, float srcMax, float dstMin, float dstMax) {
 	float retVal = dstMin + ((value - srcMin) / (srcMax - srcMin) * (dstMax - dstMin));
 	if (retVal < dstMin) {
@@ -33,6 +29,16 @@ float mapValue(float value, float srcMin, float srcMax, float dstMin, float dstM
 	return retVal;
 }
 
+float lerp(float v0, float v1, float t) {
+	return (1.0f - t)*v0 + t*v1;
+}
+
+float easeOut(float from, float to, float time) {
+	float oneMinusT = 1.0f - time;
+	float tVal = 1.0f - (oneMinusT * oneMinusT * oneMinusT *
+		oneMinusT * oneMinusT);
+	return (1.0f - tVal)*from + tVal*to;
+}
 
 class SheetSprite {
 private:

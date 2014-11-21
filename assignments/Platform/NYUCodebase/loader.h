@@ -20,31 +20,6 @@ GLuint LoadTexture(const char *image_path/*, GLenum format*/) {
 	return textureID;
 }
 
-void DrawSprite(GLint texture, float x, float y, float rotation) {
-	glEnable(GL_TEXTURE_2D);
-	glBindTexture(GL_TEXTURE_2D, texture);
-
-	glMatrixMode(GL_MODELVIEW);
-
-	glLoadIdentity();
-	glTranslatef(x, y, 0.0);
-	glRotatef(rotation, 0.0, 0.0, 1.0);
-
-	GLfloat quad[] = { -0.1f, 0.1f, -0.1f, -0.1f, 0.1f, -0.1f, 0.1f, 0.1f };
-	glVertexPointer(2, GL_FLOAT, 0, quad);
-	glEnableClientState(GL_VERTEX_ARRAY);
-
-	GLfloat quadUVs[] = { 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0 };
-	glTexCoordPointer(2, GL_FLOAT, 0, quadUVs);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	glDrawArrays(GL_QUADS, 0, 4);
-	glDisable(GL_TEXTURE_2D);
-}
-
 void drawText(int fontTexture, string text, float size, float spacing, float xDisp, float yDisp, float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f) {
 	glBindTexture(GL_TEXTURE_2D, fontTexture);
 	glEnable(GL_TEXTURE_2D);
@@ -79,3 +54,43 @@ void drawText(int fontTexture, string text, float size, float spacing, float xDi
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 }
+
+void DrawSpriteAnimation(GLint texture, int index, int spriteCount_x, int spriteCount_y, float disp_x, float disp_y) {
+
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, texture);
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glTranslatef(disp_x, disp_y, 0.0f);
+
+	// our regular sprite drawing 
+	float u = (float)(((int)index) % spriteCount_x) / (float)spriteCount_x;
+	float v = (float)(((int)index) / spriteCount_x) / (float)spriteCount_y;
+	float width = 1.0f / (float)spriteCount_x;
+	float height = 1.0f / (float)spriteCount_y;
+
+	GLfloat quad[] = { (float)(0 - width * 4), (float)(height * 4),
+		(float)(0 - width * 4), (float)(0 - height * 4),
+		(float)(width * 4), (float)(0 - height * 4),
+		(float)(width * 4), (float)(height * 4) };
+	glVertexPointer(2, GL_FLOAT, 0, quad);
+	glEnableClientState(GL_VERTEX_ARRAY);
+
+	GLfloat quadUVs[] = { u, v,
+		u, v + height,
+		u + width, v + height,
+		u + width, v
+	};
+	// our regular sprite drawing 
+
+	glTexCoordPointer(2, GL_FLOAT, 0, quadUVs);
+	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glDrawArrays(GL_QUADS, 0, 4);
+	glDisable(GL_TEXTURE_2D);
+}
+

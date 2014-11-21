@@ -2,6 +2,7 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <SDL_image.h>
+#include <SDL_mixer.h>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -29,6 +30,7 @@ private:
 	float timeLeftOver;
 	SDL_Window* displayWindow;
 	GLuint spriteSheet;
+	Mix_Chunk* shoot;
 
 	Entity* user;
 	vector<Entity*> asteroids;
@@ -46,6 +48,8 @@ Game::Game() {
 	lastFrameTicks = 0.0f;
 	timeLeftOver = 0.0f;
 
+	Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2096);
+	shoot = Mix_LoadWAV("shoot.wav");
 	spriteSheet = LoadTexture("sheet.png");
 
 	Matrix initial;
@@ -88,6 +92,7 @@ bool Game::UpdateAndRender() {
 	if (keys[SDL_SCANCODE_UP]) {
 		user->x += 0.5f * user->vector.x * elapsed;
 		user->y += 0.5f * user->vector.y * elapsed;
+		Mix_PlayChannel(-1, shoot, -1);
 	}
 	else if (keys[SDL_SCANCODE_DOWN]) {
 		user->x -= 0.3f * user->vector.x * elapsed;

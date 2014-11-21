@@ -2,6 +2,7 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <SDL_image.h>
+#include <SDL_mixer.h>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -55,11 +56,19 @@ private:
 	float timeLeftOver;
 	float timeElapsed;
 	float timeSinceLastSpawn;
+	float screenShakeValue;
+
 	SDL_Window* displayWindow;
 	GLuint spriteSheet;
 	GLuint spriteSheet2;
 	GLuint spriteSheet3;
+	GLuint explosionSpriteSheet;
 	GLuint font;
+	Mix_Music* music;
+	Mix_Chunk* shoot;
+	Mix_Chunk* enemyHit;
+	Mix_Chunk* gameOver;
+	Mix_Chunk* blop;
 
 	Entity* player;
 	vector<Entity*> enemies;
@@ -76,11 +85,12 @@ private:
 	int spawn_x;
 	int spawn_y;
 
+	//void explosion(int index, float x_pos, float y_pos);
+
 	void reset();
 
 	bool isSolid(unsigned char tile);
 	bool checkCollision(Entity* a, Entity* b);
-
 	void worldToTileCoordinates(float x, float y, int* grid_x, int* grid_y);
 	void tileToWorldCoordinates(int grid_x, int grid_y, float* x, float* y);
 	float checkPointForGridCollisionX(float x, float y);
@@ -106,11 +116,12 @@ Game::Game() {
 	lastFrameTicks = 0.0f;
 	timeLeftOver = 0.0f;
 	timeSinceLastSpawn = 0.0f;
+	screenShakeValue = 0.0f;
 
 	srand(static_cast <unsigned> (time(0)));
 
-	mapHeight = 100;
-	mapWidth = 100;
+	mapHeight = 30;
+	mapWidth = 30;
 	levelData = new unsigned char*[mapHeight];
 	for (int i = 0; i < mapHeight; ++i) {
 		levelData[i] = new unsigned char[mapWidth];
@@ -126,7 +137,15 @@ Game::Game() {
 	
 	spriteSheet2 = LoadTexture("arne_sprites.png");
 	spriteSheet3 = LoadTexture("characters_1.png");
+	explosionSpriteSheet = LoadTexture("explosion.png");
 	font = LoadTexture("font.png");
+
+	Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096);
+	music = Mix_LoadMUS("music.mp3");
+	shoot = Mix_LoadWAV("shoot.wav");
+	enemyHit = Mix_LoadWAV("enemy_hit.wav");
+	gameOver = Mix_LoadWAV("game_over.wav");
+	blop = Mix_LoadWAV("blop.wav");
 
 	Matrix initial;
 	glLoadMatrixf(initial.ml);
@@ -135,6 +154,11 @@ Game::Game() {
 }
 
 Game::~Game() {
+	Mix_FreeMusic(music);
+	Mix_FreeChunk(shoot);
+	Mix_FreeChunk(enemyHit);
+	Mix_FreeChunk(gameOver);
+
 	SDL_Quit();
 }
 
@@ -177,6 +201,7 @@ bool Game::UpdateAndRender() {
 	//else {
 	//	ParticleEmitterTest.active = false;
 	////}
+
 	if (keys[SDL_SCANCODE_1]) { state = MAIN_MENU; }
 	else if (keys[SDL_SCANCODE_2]) { state = GAME_PLAY; }
 	else if (keys[SDL_SCANCODE_3]) { state = GAME_PAUSE; }
@@ -187,6 +212,7 @@ bool Game::UpdateAndRender() {
 			//Matrix initial;
 			//glLoadMatrixf(initial.ml);
 			reset();
+			Mix_PlayMusic(music, -1);
 			state = GAME_PLAY;
 		}
 		break;
@@ -196,6 +222,7 @@ bool Game::UpdateAndRender() {
 				gun1->bulletReset(player->position);
 				gun1->bulletShoot(Vector(((((float)event.motion.x / 800.0f) * 2.666f) - 1.333f),
 					(((float)(600 - event.motion.y) / 600.0f) * 2.0f) - 1.0f));
+				Mix_PlayChannel(-1, shoot, 0);
 			}
 		}
 		if (keys[SDL_SCANCODE_UP]) {
@@ -242,7 +269,8 @@ bool Game::UpdateAndRender() {
 		break;
 	case GAME_OVER:
 		if (event.button.button == 3 && event.type == SDL_MOUSEBUTTONDOWN) {
-			state = MAIN_MENU;
+			state = MAIN_MENU; 
+			Mix_HaltChannel(3);
 		}
 		break;
 	}
@@ -277,6 +305,7 @@ void Game::Render() {
 		RenderGame();
 		break;
 	case GAME_OVER:
+		RenderGame();
 		RenderGameOver();
 		break;
 	}
@@ -346,12 +375,23 @@ void Game::RenderMainMenu() {
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	drawText(font, "<Game Name>", 0.3f, -0.13f, -0.85f, 0.7f);
-	drawText(font, "Click to Start Game", 0.1f, -0.05f, -0.42f, 0.2f);
-	drawText(font, "WASD to move", 0.1f, -0.05f, -0.23, -0.2f);
-	drawText(font, "mouse to aim, left click to shoot", 0.1f, -0.05f, -0.8f, -0.4f);
-	drawText(font, "bullets can break blocks", 0.1f, -0.05f, -0.53f, -0.6f);
-	drawText(font, "press 1 to restart game", 0.1f, -0.05f, -0.5f, -0.8f);
+	float animationValue = mapValue(timeElapsed, 0.0f, 3.0f, 0.0f, 1.0f);
+	drawText(font, "<Game Name>", 0.3f, -0.13f, easeOut(-3.0f, -0.85f, animationValue), 0.7f);
+	//drawText(font, "<Game Name>", 0.3f, -0.13f, -0.85f, 0.7f);
+	animationValue = mapValue(timeElapsed, 1.8f, 2.8f, 0.0f, 1.0f);
+	drawText(font, "Click to Start Game", 0.1f, -0.05f, easeOut(-2.25f, -0.42f, animationValue), 0.2f);
+
+	animationValue = mapValue(timeElapsed, 2.6f, 3.6f, 0.0f, 1.0f);
+	drawText(font, "WASD to move", 0.1f, -0.05f, easeOut(-2.0, -0.23f, animationValue), -0.2f);
+
+	animationValue = mapValue(timeElapsed, 3.4f, 4.4f, 0.0f, 1.0f);
+	drawText(font, "mouse to aim, left click to shoot", 0.1f, -0.05f, easeOut(-3.0f, -0.8f, animationValue), -0.4f);
+
+	animationValue = mapValue(timeElapsed, 4.2f, 5.2f, 0.0f, 1.0f);
+	drawText(font, "bullets can break blocks", 0.1f, -0.05f, easeOut(-2.5f, -0.53f, animationValue), -0.6f);
+
+	//animationValue = mapValue(timeElapsed, 5.0f, 6.0f, 0.0f, 1.0f);
+	//drawText(font, "press 1 to restart game", 0.1f, -0.05f, easeOut(-2.5f, -0.5f, animationValue), -0.8f);
 }
 
 void Game::RenderGame() {
@@ -360,22 +400,24 @@ void Game::RenderGame() {
 	glClear(GL_COLOR_BUFFER_BIT);
 	float trans_x = -player->position.x;
 	float trans_y = -player->position.y;
-	////if (trans_y > 0.0f) {
-	////	trans_y = 0.0f;
-	////}
+	//if (trans_y > 3.0f) {
+	//	trans_y = 3.0f;
+	//}
 	//if (trans_y < 1.0f) {
 	//	trans_y = 1.0f;
 	//}
 	//if (trans_x > -1.0f) {
 	//	trans_x = -1.0f;
 	//}
-	////if (trans_x < -2.0f) {
-	////	trans_x = -2.0f;
-	////}
+	//if (trans_x < - mapWidth * TILE_SIZE) {
+	//	trans_x = - mapWidth * TILE_SIZE;
+	//}
 
 	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
 	glTranslatef(trans_x, trans_y, 0.0f);
+	if (state == GAME_OVER) {
+		glTranslatef(sin(screenShakeValue * 70.0f) * 0.02f, sin(screenShakeValue * 50.0f) * 0.02f, 0.0f);
+	}
 
 	//for (size_t i = 0; i < asteroids.size(); i++) {
 	//	asteroids[i]->Render();
@@ -397,8 +439,8 @@ void Game::RenderGame() {
 
 void Game::RenderGameOver() {
 	glLoadIdentity();
-	glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+	//glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
+	//glClear(GL_COLOR_BUFFER_BIT);
 
 	drawText(font, "GAME OVER", 0.3f, -0.1f, -0.8f, 0.45f);
 	drawText(font, "Final Score:", 0.2f, -0.1f, -0.5f, 0.1f);
@@ -417,7 +459,8 @@ void Game::FixedUpdate() {
 	timeElapsed += FIXED_TIMESTEP;
 	timeSinceLastSpawn += FIXED_TIMESTEP;
 
-	if (state == GAME_PLAY) {
+	switch (state) {
+	case GAME_PLAY:
 		//player
 		player->FixedUpdate();
 		player->position.y += player->velocity.y * FIXED_TIMESTEP;
@@ -497,6 +540,8 @@ void Game::FixedUpdate() {
 
 			if (!enemies[i]->dead) {
 				if (checkCollision(enemies[i], player)) {
+					Mix_HaltMusic();
+					Mix_PlayChannel(3, gameOver, 0);
 					state = GAME_OVER;
 				}
 
@@ -611,6 +656,8 @@ void Game::FixedUpdate() {
 					}
 				}
 			}
+
+			//shapes
 		}
 
 		//gun
@@ -625,6 +672,7 @@ void Game::FixedUpdate() {
 					if (checkCollision(gun1, enemies[i])) {
 						gun1->bulletReset(player->position);
 						enemies[i]->dead = true;
+						Mix_PlayChannel(-1, enemyHit, 0);
 						score += 100;
 					}
 				}
@@ -633,6 +681,7 @@ void Game::FixedUpdate() {
 				int grid_x, grid_y;
 				worldToTileCoordinates(gun1->position.x, gun1->position.y, &grid_x, &grid_y);
 				if (levelData[grid_y][grid_x] != 3) {
+					Mix_PlayChannel(-1, blop, 0);
 					levelData[grid_y][grid_x] = 12;
 				}
 				gun1->bulletReset(player->position);
@@ -641,12 +690,18 @@ void Game::FixedUpdate() {
 				gun1->bulletActive = false;
 			}
 		}
+
+		screenShakeValue += FIXED_TIMESTEP;
+		break;
+	case GAME_OVER:
+		screenShakeValue += FIXED_TIMESTEP;
+		break;
 	}
 
 
-	//particleEmitterTest
-	
 
+
+	//particleEmitterTest
 	////bulletshooter
 	//BulletShooterTest.position = Vector(player->position.x, player->position.y);
 	//if (player->facingRight) {
@@ -656,39 +711,6 @@ void Game::FixedUpdate() {
 	//	BulletShooterTest.velocity = Vector(-3.0f, 0.0f);
 	//}
 	//BulletShooterTest.FixedUpdate();
-
-	//for (size_t i = 0; i < asteroids.size(); i++) {
-	//	asteroids[i]->FixedUpdate();
-	//	
-	//	//player vs asteroid
-	//	if (checkCollision(player, asteroids[i])) {
-	//		Vector distance = Vector(player->x - asteroids[i]->x, player->y - asteroids[i]->y);
-	//		float distLength = distance.length();
-	//		distance.normalize();
-	//
-	//		player->x += distance.x * 0.0002f / pow(distLength, 2);
-	//		player->y += distance.y * 0.0002f / pow(distLength, 2);
-	//
-	//		asteroids[i]->x -= distance.x * 0.0002f / pow(distLength, 2);
-	//		asteroids[i]->y -= distance.y * 0.0002f / pow(distLength, 2);
-	//	}
-	//
-	//	// asteroid v asteroid
-	//	for (size_t j = 0; j < asteroids.size(); j++) {
-	//		if (checkCollision(asteroids[i], asteroids[j])) {
-	//			Vector distance = Vector(asteroids[i]->x - asteroids[j]->x, asteroids[i]->y - asteroids[j]->y);
-	//			float distLength = distance.length();
-	//			distance.normalize();
-	//
-	//			asteroids[i]->x += distance.x * 0.00015f / pow(distLength, 2);
-	//			asteroids[i]->y += distance.y * 0.00015f / pow(distLength, 2);
-	//
-	//			asteroids[j]->x -= distance.x * 0.00015f / pow(distLength, 2);
-	//			asteroids[j]->y -= distance.y * 0.00015f / pow(distLength, 2);
-	//		}
-	//	}
-	//
-	//}
 }
 
 void Game::reset() {
