@@ -18,7 +18,7 @@ public:
 	Entity();
 	~Entity();
 
-	void FixedUpdate();
+	virtual void FixedUpdate();
 	void Render();
 	void buildMatrix();
 
@@ -80,6 +80,7 @@ public:
 	bool dead;
 	float timeSinceLastJump;
 	float jumpTimeGap;
+	int entityID;
 };
 
 //void Entity::setVector(){
@@ -128,6 +129,7 @@ Entity::Entity() {
 	dead = false;
 	timeSinceLastJump = 0.0f;
 	jumpTimeGap = 0.0f;
+	entityID = -1;
 }
 
 Entity::~Entity() {}
@@ -167,9 +169,9 @@ void Entity::jump() {
 }
 
 void Entity::hover() {
-	collidedBot = false;
+	collidedBot = false; 
 	isHovering = true;
-	acc_y = 15.0f;
+	acc_y = 15.0f * speed;
 }
 
 void Entity::stopHovering() {
@@ -181,7 +183,7 @@ void Entity::stopHovering() {
 //shoot the bullet at a poin
 
 void Entity::FixedUpdate() {
-
+	
 	//if (collidedBot) {
 	//	isJumping = false;
 	//	//if (entities[i]->velocity.y < 0.0f) {
@@ -200,7 +202,7 @@ void Entity::FixedUpdate() {
 	//}
 	//if (collidedLeft) {
 	//	//if (!entities[i]->facingRight) {
-	//	velocity.x = 0.0f;
+	//	velocity.x = 0.0f;re
 	//	//}
 	//}
 
@@ -217,7 +219,6 @@ void Entity::FixedUpdate() {
 
 	velocity.x += acc_x * FIXED_TIMESTEP;
 	velocity.y += acc_y * FIXED_TIMESTEP;
-
 	if (bulletActive) {
 		lifetime += FIXED_TIMESTEP;
 	}

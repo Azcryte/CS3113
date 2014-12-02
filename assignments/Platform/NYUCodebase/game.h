@@ -11,6 +11,9 @@
 #include <sstream>
 #include <ctime>
 #include "entity.h"
+#include "dumbMob.h"
+#include "bat.h"
+#include "explosion.h"
 //#include "loader.h"
 //#include "matrix.h"
 #include "particleEmitter.h"
@@ -28,9 +31,26 @@
 #define SPRITE_COUNT_Y 8
 #define TILE_SIZE 0.1f
 
-#define MAX_ENEMIES 5
+//#define MAX_ENEMIES 5
+#define NUM_DUMBMOBS 7
+#define DUMBMOB_SPAWN_TIMER 1.0f
+#define NUM_BATS 3
+#define BAT_SPAWN_TIMER 2.0f
+
+#define ENEMY_TYPES 2
 
 enum GameState{ MAIN_MENU, GAME_PLAY, GAME_PAUSE, GAME_OVER};
+enum EnemyID{DUMB_MOB, BAT};
+
+/*
+entityID:
+	-10 = player
+	-5 = bullet
+	-1 = default
+	0 = dumb mob
+	1 = bat
+
+*/
 
 class Game{
 public:
@@ -55,14 +75,18 @@ private:
 	float lastFrameTicks;
 	float timeLeftOver;
 	float timeElapsed;
-	float timeSinceLastSpawn;
 	float screenShakeValue;
+	vector<float> timeSinceLastSpawn;
+	//float timeSinceLastSpawn;
 
 	SDL_Window* displayWindow;
 	GLuint spriteSheet;
 	GLuint spriteSheet2;
 	GLuint spriteSheet3;
 	GLuint explosionSpriteSheet;
+	vector<float> explosion_u;
+	vector<float> explosion_v;
+	vector<Explosion*> explosions;
 	GLuint font;
 	Mix_Music* music;
 	Mix_Chunk* shoot;
@@ -72,6 +96,8 @@ private:
 
 	Entity* player;
 	vector<Entity*> enemies;
+	vector<DumbMob*> dumbMobs;
+	vector<Bat*> bats;
 	Entity* gun1;
 
 	ParticleEmitter ParticleEmitterTest;
@@ -115,13 +141,17 @@ Game::Game() {
 	score = 0;
 	lastFrameTicks = 0.0f;
 	timeLeftOver = 0.0f;
-	timeSinceLastSpawn = 0.0f;
+	//timeSinceLastSpawn = 0.0f;
 	screenShakeValue = 0.0f;
+
+	for (size_t i = 0; i < ENEMY_TYPES; i++) {
+		timeSinceLastSpawn.push_back(0.0f);
+	}
 
 	srand(static_cast <unsigned> (time(0)));
 
-	mapHeight = 30;
-	mapWidth = 30;
+	mapHeight = 100;
+	mapWidth = 100;
 	levelData = new unsigned char*[mapHeight];
 	for (int i = 0; i < mapHeight; ++i) {
 		levelData[i] = new unsigned char[mapWidth];
@@ -138,6 +168,18 @@ Game::Game() {
 	spriteSheet2 = LoadTexture("arne_sprites.png");
 	spriteSheet3 = LoadTexture("characters_1.png");
 	explosionSpriteSheet = LoadTexture("explosion.png");
+	explosion_u = { 0.0f / 5.0f, 1.0f / 5.0f, 2.0f / 5.0f, 3.0f / 5.0f, 4.0f / 5.0f, 
+		0.0f / 5.0f, 1.0f / 5.0f, 2.0f / 5.0f, 3.0f / 5.0f, 4.0f / 5.0f, 
+		0.0f / 5.0f, 1.0f / 5.0f, 2.0f / 5.0f, 3.0f / 5.0f, 4.0f / 5.0f, 
+		0.0f / 5.0f, 1.0f / 5.0f, 2.0f / 5.0f, 3.0f / 5.0f, 4.0f / 5.0f, 
+		0.0f / 5.0f, 1.0f / 5.0f, 2.0f / 5.0f, 3.0f / 5.0f, 4.0f / 5.0f,
+		4.0f / 5.0f };
+	explosion_v = { 0.0f / 5.0f, 0.0f / 5.0f, 0.0f / 5.0f, 0.0f / 5.0f, 0.0f / 5.0f, 
+		1.0f / 5.0f, 1.0f / 5.0f, 1.0f / 5.0f, 1.0f / 5.0f, 1.0f / 5.0f, 
+		2.0f / 5.0f, 2.0f / 5.0f, 2.0f / 5.0f, 2.0f / 5.0f, 2.0f / 5.0f, 
+		3.0f / 5.0f, 3.0f / 5.0f, 3.0f / 5.0f, 3.0f / 5.0f, 3.0f / 5.0f, 
+		4.0f / 5.0f, 4.0f / 5.0f, 4.0f / 5.0f, 4.0f / 5.0f, 4.0f / 5.0f, 
+		4.0f / 5.0f };
 	font = LoadTexture("font.png");
 
 	Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096);
@@ -158,6 +200,7 @@ Game::~Game() {
 	Mix_FreeChunk(shoot);
 	Mix_FreeChunk(enemyHit);
 	Mix_FreeChunk(gameOver);
+	Mix_FreeChunk(blop);
 
 	SDL_Quit();
 }
@@ -225,7 +268,7 @@ bool Game::UpdateAndRender() {
 				Mix_PlayChannel(-1, shoot, 0);
 			}
 		}
-		if (keys[SDL_SCANCODE_UP]) {
+		if (keys[SDL_SCANCODE_W]) {
 			player->hover();
 			//if (!player->isJumping) {
 			//	player->jump();
@@ -235,13 +278,13 @@ bool Game::UpdateAndRender() {
 			player->stopHovering();
 		}
 
-		if (keys[SDL_SCANCODE_RIGHT]) {
+		if (keys[SDL_SCANCODE_D]) {
 			player->moveRight();
 			//for (size_t i = 0; i < MAX_ENEMIES; i++) {
 			//	enemies[i]->moveRight();
 			//}
 		}
-		else if (keys[SDL_SCANCODE_LEFT]) {
+		else if (keys[SDL_SCANCODE_A]) {
 			player->moveLeft();
 			//for (size_t i = 0; i < MAX_ENEMIES; i++) {
 			//	enemies[i]->moveLeft();
@@ -427,10 +470,13 @@ void Game::RenderGame() {
 	if (gun1->bulletActive) {
 		gun1->Render();
 	}
-	for (size_t i = 0; i < MAX_ENEMIES; i++) {
+	for (size_t i = 0; i < enemies.size(); i++) {
 		if (!enemies[i]->dead) {
 			enemies[i]->Render();
 		}
+	}
+	for (size_t i = 0; i < explosions.size(); i++) {
+		explosions[i]->Render();
 	}
 	ParticleEmitterTest.Render();
 	drawText(font, "Score:" + to_string(score), 0.1f, -0.05f, -0.95f, 0.95f);
@@ -457,7 +503,10 @@ void Game::Update(float elapsed) {
 
 void Game::FixedUpdate() {
 	timeElapsed += FIXED_TIMESTEP;
-	timeSinceLastSpawn += FIXED_TIMESTEP;
+	for (size_t i = 0; i < timeSinceLastSpawn.size(); i++) {
+		timeSinceLastSpawn[i] += FIXED_TIMESTEP;
+	}
+	//timeSinceLastSpawn += FIXED_TIMESTEP;
 
 	switch (state) {
 	case GAME_PLAY:
@@ -469,7 +518,7 @@ void Game::FixedUpdate() {
 		doLevelCollisionX(player);
 
 		float animation;
-		player->elapsed += FIXED_TIMESTEP;
+		//elapplayer->elapsed += FIXED_TIMESTEP;
 		animation = fmod(player->elapsed, FIXED_TIMESTEP * 100.0f);
 		if (player->facingRight) {
 			/*if (player->velocity.x < 0.2f) {
@@ -520,144 +569,299 @@ void Game::FixedUpdate() {
 		}
 		ParticleEmitterTest.FixedUpdate();
 
-		//enemies
-		for (size_t i = 0; i < MAX_ENEMIES; i++) {
-			if (fabs(enemies[i]->position.x - player->position.x) > 4.0f ||
-				fabs(enemies[i]->position.y - player->position.y) > 3.0f) {
-				enemies[i]->dead = true;
+		//enemies dumbmob
+		//for (size_t i = 0; i < MAX_ENEMIES; i++) {
+		//	if (fabs(enemies[i]->position.x - player->position.x) > 4.0f ||
+		//		fabs(enemies[i]->position.y - player->position.y) > 3.0f) {
+		//		enemies[i]->dead = true;
+		//	}
+		//
+		//	if (enemies[i]->dead && timeSinceLastSpawn > 2.0f) {
+		//		enemies[i]->dead = false;
+		//		float scale = randomFloat(0.8f, 1.2f);
+		//		enemies[i]->scale_x = scale;
+		//		enemies[i]->scale_y = scale;
+		//		enemies[i]->position = checkForValidSpawnLocation(1);
+		//		enemies[i]->velocity.x = randomFloat(8.0f, 11.0f);
+		//		enemies[i]->jumpTimeGap = randomFloat(1.0f, 3.0f);
+		//		timeSinceLastSpawn = 0.0f;
+		//	}
+		//
+		//	if (!enemies[i]->dead) {
+		//		if (checkCollision(enemies[i], player)) {
+		//			Mix_HaltMusic();
+		//			Mix_PlayChannel(3, gameOver, 0);
+		//			state = GAME_OVER;
+		//		}
+		//
+		//		//if (enemies[i]->facingRight) {
+		//		//	enemies[i]->velocity.x = 0.5f;
+		//		//}
+		//		//else {
+		//		//	enemies[i]->velocity.x = -0.5f;
+		//		//}
+		//
+		//		//// ****** put in fixed update v *******
+		//
+		//		//if (enemies[i]->collidedBot) {
+		//		//	enemies[i]->isJumping = false;
+		//		//	//if (entities[i]->velocity.y < 0.0f) {
+		//		//	enemies[i]->velocity.y = 0.0f;
+		//		//	//}
+		//		//}sp
+		//		//else {
+		//		//	enemies[i]->isJumping = true;
+		//		//}
+		//		//if (enemies[i]->collidedTop) {
+		//		//	if (enemies[i]->velocity.y > 0.0f) {
+		//		//		//entities[i]->velocity.y = 0.0f;
+		//		//	}
+		//		//}
+		//		//if (enemies[i]->collidedRight) {
+		//		//	if (enemies[i]->facingRight) {
+		//		//		enemies[i]->facingRight = false;
+		//		//		//enemies[i]->velocity.x = 0.0f;
+		//		//	}
+		//		//}
+		//		//if (enemies[i]->collidedLeft) {
+		//		//	if (!enemies[i]->facingRight) {
+		//		//		enemies[i]->facingRight = true;
+		//		//		//enemies[i]->velocity.x = 0.0f;
+		//		//	}
+		//		//}
+		//		//if (enemies[i]->timeSinceLastJump > enemies[i]->jumpTimeGap) {
+		//		//	if (!enemies[i]->isJumping) {
+		//		//		enemies[i]->jump();
+		//		//	}
+		//		//	enemies[i]->timeSinceLastJump = 0.0f;
+		//		//}
+		//		if (enemies[i]->timeSinceLastJump > enemies[i]->jumpTimeGap) {
+		//			if (enemies[i]->position.y < player->position.y) {
+		//				enemies[i]->hover();
+		//				enemies[i]->timeSinceLastJump = 0.0f;
+		//			}
+		//			else {
+		//				enemies[i]->stopHovering();
+		//				enemies[i]->timeSinceLastJump = 0.0f;
+		//			}
+		//			if (enemies[i]->position.x < player->position.x) {
+		//				enemies[i]->facingRight = true;
+		//			}
+		//			else {
+		//				enemies[i]->facingRight = false;
+		//			}
+		//		}
+		//		
+		//		enemies[i]->FixedUpdate();
+		//		//enemies[i]->timeSinceLastJump += FIXED_TIMESTEP;
+		//
+		//		enemies[i]->position.y += enemies[i]->velocity.y * FIXED_TIMESTEP;
+		//		doLevelCollisionY(enemies[i]);
+		//
+		//		enemies[i]->position.x += enemies[i]->velocity.x * FIXED_TIMESTEP;
+		//		doLevelCollisionX(enemies[i]);
+		//
+		//		//enemies[i]->elapsed += FIXED_TIMESTEP;
+		//		animation = fmod(enemies[i]->elapsed, FIXED_TIMESTEP * 60.0f);
+		//		if (enemies[i]->facingRight) {
+		//			/*if (player->velocity.x < 0.2f) {
+		//			player->sprite.frame = 4;
+		//			}
+		//			else */if (animation < FIXED_TIMESTEP * 15.0f) {
+		//			enemies[i]->sprite.frame = 3;
+		//			}
+		//			else if (animation < FIXED_TIMESTEP * 30.0f) {
+		//				enemies[i]->sprite.frame = 4;
+		//			}
+		//			else if (animation < FIXED_TIMESTEP * 45.0f) {
+		//				enemies[i]->sprite.frame = 5;
+		//			}
+		//			else {
+		//				enemies[i]->sprite.frame = 4;
+		//			}
+		//		}
+		//		else if (!enemies[i]->facingRight) {
+		//			/*if (player->velocity.x > -0.2f) {
+		//			player->sprite.frame = 1;
+		//			}
+		//			else */if (animation < FIXED_TIMESTEP * 15.0f) {
+		//			enemies[i]->sprite.frame = 0;
+		//			}
+		//			else if (animation < FIXED_TIMESTEP * 30.0f) {
+		//				enemies[i]->sprite.frame = 1;
+		//			}
+		//			else if (animation < FIXED_TIMESTEP * 45.0f) {
+		//				enemies[i]->sprite.frame = 2;
+		//			}
+		//			else {
+		//				enemies[i]->sprite.frame = 1;
+		//			}
+		//		}
+		//	}
+		//
+		//	//shapes
+		//}
+
+		// enemy - dumbmob
+		for (size_t i = 0; i < NUM_DUMBMOBS; i++) {
+			if (fabs(dumbMobs[i]->position.x - player->position.x) > 4.0f ||
+				fabs(dumbMobs[i]->position.y - player->position.y) > 3.0f) {
+				dumbMobs[i]->dead = true;
 			}
 
-			if (enemies[i]->dead && timeSinceLastSpawn > 2.0f) {
-				enemies[i]->dead = false;
-				float scale = randomFloat(0.8f, 1.2f);
-				enemies[i]->scale_x = scale;
-				enemies[i]->scale_y = scale;
-				enemies[i]->position = checkForValidSpawnLocation(1);
-				enemies[i]->velocity.x = randomFloat(8.0f, 11.0f);
-				enemies[i]->jumpTimeGap = randomFloat(1.0f, 3.0f);
-				timeSinceLastSpawn = 0.0f;
+			if (dumbMobs[i]->dead && timeSinceLastSpawn[DUMB_MOB] > DUMBMOB_SPAWN_TIMER) {
+				dumbMobs[i]->dead = false;
+				float scale = randomFloat(1.1f, 1.2f);
+				dumbMobs[i]->scale_x = scale;
+				dumbMobs[i]->scale_y = scale;
+				dumbMobs[i]->position = checkForValidSpawnLocation(1);
+				//dumbMobs[i]->velocity.x = randomFloat(8.0f, 11.0f);
+				dumbMobs[i]->jumpTimeGap = randomFloat(1.0f, 3.0f);
+				timeSinceLastSpawn[DUMB_MOB] = 0.0f;
 			}
 
-			if (!enemies[i]->dead) {
-				if (checkCollision(enemies[i], player)) {
+			if (!dumbMobs[i]->dead) {
+				if (checkCollision(dumbMobs[i], player)) {
 					Mix_HaltMusic();
 					Mix_PlayChannel(3, gameOver, 0);
 					state = GAME_OVER;
 				}
 
-				if (enemies[i]->facingRight) {
-					enemies[i]->velocity.x = 0.5f;
-				}
-				else {
-					enemies[i]->velocity.x = -0.5f;
-				}
+				dumbMobs[i]->FixedUpdate();
+				//dumbMobs[i]->timeSinceLastJump += FIXED_TIMESTEP;
 
-				// ****** put in fixed update v *******
+				dumbMobs[i]->position.y += dumbMobs[i]->velocity.y * FIXED_TIMESTEP;
+				doLevelCollisionY(dumbMobs[i]);
 
-				if (enemies[i]->collidedBot) {
-					enemies[i]->isJumping = false;
-					//if (entities[i]->velocity.y < 0.0f) {
-					enemies[i]->velocity.y = 0.0f;
-					//}
-				}
-				if (enemies[i]->collidedTop) {
-					if (enemies[i]->velocity.y > 0.0f) {
-						//entities[i]->velocity.y = 0.0f;
-					}
-				}
-				if (enemies[i]->collidedRight) {
-					if (enemies[i]->facingRight) {
-						enemies[i]->facingRight = false;
-						//enemies[i]->velocity.x = 0.0f;
-					}
-				}
-				if (enemies[i]->collidedLeft) {
-					if (!enemies[i]->facingRight) {
-						enemies[i]->facingRight = true;
-						//enemies[i]->velocity.x = 0.0f;
-					}
-				}
-				if (enemies[i]->timeSinceLastJump > enemies[i]->jumpTimeGap) {
-					if (!enemies[i]->isJumping) {
-						enemies[i]->jump();
-					}
-					enemies[i]->timeSinceLastJump = 0.0f;
-				}
+				dumbMobs[i]->position.x += dumbMobs[i]->velocity.x * FIXED_TIMESTEP;
+				doLevelCollisionX(dumbMobs[i]);
 
-				enemies[i]->FixedUpdate();
-				enemies[i]->timeSinceLastJump += FIXED_TIMESTEP;
-
-				enemies[i]->position.y += enemies[i]->velocity.y * FIXED_TIMESTEP;
-				//for (size_t j = 0; j < enemies.size(); j++) {
-				//	if (checkCollision(enemies[i], enemies[j]) && enemies[i] != enemies[j]) {
-				//		float yPenetrationsco = fabs(fabs(enemies[j]->position.y - enemies[i]->position.y) - (enemies[i]->sprite.height * enemies[i]->scale_y) / 2.0f - (enemies[j]->sprite.height * enemies[j]->scale_y) / 2.0f);
-				//		if (enemies[i]->position.y > enemies[j]->position.y) {
-				//			enemies[i]->position.y += yPenetration + 0.001f;
-				//			enemies[i]->collidedBot = true;
-				//		}
-				//		else if (enemies[i]->position.y < enemies[j]->position.y) {
-				//			enemies[i]->position.y -= yPenetration + 0.001f;
-				//			enemies[i]->collidedTop = true;
-				//		}
-				//	}
-				//}
-				doLevelCollisionY(enemies[i]);
-
-				enemies[i]->position.x += enemies[i]->velocity.x * FIXED_TIMESTEP;
-				//for (size_t j = 0; j < enemies.size(); j++) {
-				//	if (checkCollision(enemies[i], enemies[j]) && enemies[i] != enemies[j]) {
-				//		float xPenetration = fabs(fabs(enemies[j]->position.x - enemies[i]->position.x) - (enemies[i]->sprite.width * enemies[i]->scale_x) / 2.0f - (enemies[j]->sprite.width * enemies[j]->scale_x) / 2.0f);
-				//		if (enemies[i]->position.x > enemies[j]->position.x) {
-				//			enemies[i]->position.x += xPenetration + 0.001f;
-				//			enemies[i]->collidedLeft = true;
-				//		}
-				//		else if (enemies[i]->position.x < enemies[j]->position.x) {
-				//			enemies[i]->position.x -= xPenetration + 0.001f;
-				//			enemies[i]->collidedRight = true;
-				//		}
-				//	}
-				//}
-				doLevelCollisionX(enemies[i]);
-
-				enemies[i]->elapsed += FIXED_TIMESTEP;
-				animation = fmod(enemies[i]->elapsed, FIXED_TIMESTEP * 60.0f);
-				if (enemies[i]->facingRight) {
+				//dumbMobs[i]->elapsed += FIXED_TIMESTEP;
+				animation = fmod(dumbMobs[i]->elapsed, FIXED_TIMESTEP * 60.0f);
+				if (dumbMobs[i]->facingRight) {
 					/*if (player->velocity.x < 0.2f) {
 					player->sprite.frame = 4;
 					}
 					else */if (animation < FIXED_TIMESTEP * 15.0f) {
-					enemies[i]->sprite.frame = 3;
+					dumbMobs[i]->sprite.frame = 3;
 					}
 					else if (animation < FIXED_TIMESTEP * 30.0f) {
-						enemies[i]->sprite.frame = 4;
+						dumbMobs[i]->sprite.frame = 4;
 					}
 					else if (animation < FIXED_TIMESTEP * 45.0f) {
-						enemies[i]->sprite.frame = 5;
+						dumbMobs[i]->sprite.frame = 5;
 					}
 					else {
-						enemies[i]->sprite.frame = 4;
+						dumbMobs[i]->sprite.frame = 4;
 					}
 				}
-				else if (!enemies[i]->facingRight) {
+				else if (!dumbMobs[i]->facingRight) {
 					/*if (player->velocity.x > -0.2f) {
 					player->sprite.frame = 1;
 					}
 					else */if (animation < FIXED_TIMESTEP * 15.0f) {
-					enemies[i]->sprite.frame = 0;
+					dumbMobs[i]->sprite.frame = 0;
 					}
 					else if (animation < FIXED_TIMESTEP * 30.0f) {
-						enemies[i]->sprite.frame = 1;
+						dumbMobs[i]->sprite.frame = 1;
 					}
 					else if (animation < FIXED_TIMESTEP * 45.0f) {
-						enemies[i]->sprite.frame = 2;
+						dumbMobs[i]->sprite.frame = 2;
 					}
 					else {
-						enemies[i]->sprite.frame = 1;
+						dumbMobs[i]->sprite.frame = 1;
 					}
 				}
 			}
+		}
 
-			//shapes
+		// enemy - bat
+		for (size_t i = 0; i < NUM_BATS; i++) {
+			if (fabs(bats[i]->position.x - player->position.x) > 4.0f ||
+				fabs(bats[i]->position.y - player->position.y) > 3.0f) {
+				bats[i]->dead = true;
+			}
+
+			if (bats[i]->dead && timeSinceLastSpawn[BAT] > BAT_SPAWN_TIMER) {
+				bats[i]->dead = false;
+				float scale = 0.9f;
+				bats[i]->scale_x = scale;
+				bats[i]->scale_y = scale;
+				bats[i]->position = checkForValidSpawnLocation(1);
+				//bats[i]->velocity.x = randomFloat(8.0f, 11.0f);
+				bats[i]->jumpTimeGap = randomFloat(1.0f, 3.0f);
+				timeSinceLastSpawn[BAT] = 0.0f;
+			}
+
+			if (!bats[i]->dead) {
+				if (checkCollision(bats[i], player)) {
+					Mix_HaltMusic();
+					Mix_PlayChannel(3, gameOver, 0);
+					state = GAME_OVER;
+				}
+				if (bats[i]->timeSinceLastJump > bats[i]->jumpTimeGap) {
+					if (bats[i]->position.y < player->position.y) {
+						bats[i]->hover();
+						bats[i]->timeSinceLastJump = 0.0f;
+					}
+					else {
+						bats[i]->stopHovering();
+						bats[i]->timeSinceLastJump = 0.0f;
+					}
+					if (bats[i]->position.x < player->position.x) {
+						bats[i]->facingRight = true;
+					}
+					else {
+						bats[i]->facingRight = false;
+					}
+				}
+
+				bats[i]->FixedUpdate();
+				//bats[i]->timeSinceLastJump += FIXED_TIMESTEP;
+
+				bats[i]->position.y += bats[i]->velocity.y * FIXED_TIMESTEP;
+				doLevelCollisionY(bats[i]);
+
+				bats[i]->position.x += bats[i]->velocity.x * FIXED_TIMESTEP;
+				doLevelCollisionX(bats[i]);
+
+				//bats[i]->elapsed += FIXED_TIMESTEP;
+				animation = fmod(bats[i]->elapsed, FIXED_TIMESTEP * 60.0f);
+				if (bats[i]->facingRight) {
+					/*if (player->velocity.x < 0.2f) {
+					player->sprite.frame = 4;
+					}
+					else */if (animation < FIXED_TIMESTEP * 15.0f) {
+					bats[i]->sprite.frame = 3;
+					}
+					else if (animation < FIXED_TIMESTEP * 30.0f) {
+						bats[i]->sprite.frame = 4;
+					}
+					else if (animation < FIXED_TIMESTEP * 45.0f) {
+						bats[i]->sprite.frame = 5;
+					}
+					else {
+						bats[i]->sprite.frame = 4;
+					}
+				}
+				else if (!bats[i]->facingRight) {
+					/*if (player->velocity.x > -0.2f) {
+					player->sprite.frame = 1;
+					}
+					else */if (animation < FIXED_TIMESTEP * 15.0f) {
+					bats[i]->sprite.frame = 0;
+					}
+					else if (animation < FIXED_TIMESTEP * 30.0f) {
+						bats[i]->sprite.frame = 1;
+					}
+					else if (animation < FIXED_TIMESTEP * 45.0f) {
+						bats[i]->sprite.frame = 2;
+					}
+					else {
+						bats[i]->sprite.frame = 1;
+					}
+				}
+			}
 		}
 
 		//gun
@@ -670,10 +874,15 @@ void Game::FixedUpdate() {
 			for (size_t i = 0; i < enemies.size(); i++) {
 				if (!enemies[i]->dead) {
 					if (checkCollision(gun1, enemies[i])) {
+						Explosion* temp = new Explosion(gun1->matrix);
+						temp->sprite = SheetSprite(explosionSpriteSheet, explosion_u, explosion_v, 0.2f, 0.2f);
+						temp->scale = 0.5f;
+						explosions.push_back(temp);
+
 						gun1->bulletReset(player->position);
 						enemies[i]->dead = true;
 						Mix_PlayChannel(-1, enemyHit, 0);
-						score += 100;
+						score += (enemies[i]->entityID + 1) * 100;
 					}
 				}
 			}
@@ -684,12 +893,32 @@ void Game::FixedUpdate() {
 					Mix_PlayChannel(-1, blop, 0);
 					levelData[grid_y][grid_x] = 12;
 				}
+				Explosion* temp = new Explosion(gun1->matrix);
+				temp->sprite = SheetSprite(explosionSpriteSheet, explosion_u, explosion_v, 0.2f, 0.2f);
+				temp->scale = 0.5f;
+				explosions.push_back(temp);
+
 				gun1->bulletReset(player->position);
 			}
 			if (gun1->lifetime > gun1->maxLifetime) {
 				gun1->bulletActive = false;
 			}
 		}
+
+		//explosion
+		for (size_t i = 0; i < explosions.size(); i++) {
+			explosions[i]->FixedUpdate();
+			if (explosions[i]->sprite.frame > 24) {
+				explosions.erase(explosions.begin() + i);
+			}
+		}
+		//vector<Explosion*>::iterator iter;
+		//for (iter = explosions.begin(); iter != explosions.end(); iter++) {
+		//	(*iter)->FixedUpdate();
+		//	if ((*iter)->sprite.frame > 24) {
+		//		explosions.erase(iter);
+		//	}
+		//}
 
 		screenShakeValue += FIXED_TIMESTEP;
 		break;
@@ -720,11 +949,14 @@ void Game::reset() {
 	score = 0;
 
 	buildLevel();
+	explosions.clear();
 	enemies.clear();
+	dumbMobs.clear();
+	bats.clear();
 
 	player = new Entity();
-	float adjust_u = 0.2f / 192.0f;
-	float adjust_v = 0.2f / 128.0f;
+	float adjust_u = 2.0f / 192.0f;
+	float adjust_v = 1.0f / 128.0f;
 	vector<float> player_u = { 6.0f / 12.0f + adjust_u, 7.0f / 12.0f + adjust_u, 8.0f / 12.0f + adjust_u,
 						6.0f / 12.0f + adjust_u, 7.0f / 12.0f + adjust_u, 8.0f / 12.0f + adjust_u};
 	vector<float> player_v = { 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v,
@@ -735,6 +967,7 @@ void Game::reset() {
 	tileToWorldCoordinates(spawn_x, spawn_y, &playerSpawn_x, &playerSpawn_y);
 	player->position.y += playerSpawn_y;
 	player->position.x += playerSpawn_x;
+	player->entityID = -10;
 	//player->speed = 5.0f;
 	//player->x += (float) (-TILE_SIZE* mapWidth / 2);i
 	//player->y += (float) (TILE_SIZE* mapHeight / 2);
@@ -753,6 +986,7 @@ void Game::reset() {
 	gun1->grav_x = 0.0f;
 	gun1->grav_y = 0.0f;
 	gun1->maxLifetime = 0.5f;
+	gun1->entityID = -5;
 
 	ParticleEmitterTest = ParticleEmitter(2.0f, 300);
 	ParticleEmitterTest.position = Vector(player->position.x, player->position.y);
@@ -762,27 +996,41 @@ void Game::reset() {
 	ParticleEmitterTest.velocityDeviation = Vector(0.3f, 0.3f);
 
 	//enemy
-	vector<float> enemy_u = { 3.0f / 12.0f + adjust_u, 4.0f / 12.0f + adjust_u, 5.0f / 12.0f + adjust_u,
-		3.0f / 12.0f + adjust_u, 4.0f / 12.0f + adjust_u, 5.0f / 12.0f + adjust_u };
-	vector<float> enemy_v = { 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v,
-		6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v, };
-	SheetSprite enemyTexture = SheetSprite(spriteSheet3, enemy_u, enemy_v, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v);
-	for (int i = 0; i < MAX_ENEMIES; i++) {
-		Entity* enemy = new Entity();
+	float adjust_bat_u = 2.0f / 192.0f;
+	float adjust_bat_v = 2.0f / 128.0f;
+	//vector<float> enemy_u = { 3.0f / 12.0f + adjust_u, 4.0f / 12.0f + adjust_u, 5.0f / 12.0f + adjust_u,
+	//	3.0f / 12.0f + adjust_u, 4.0f / 12.0f + adjust_u, 5.0f / 12.0f + adjust_u };
+	//vector<float> enemy_v = { 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v, 5.0f / 8.0f + adjust_v,
+	//	6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v, 6.0f / 8.0f + adjust_v, };
+	vector<float> enemy_u = { 3.0f / 12.0f + adjust_bat_u, 4.0f / 12.0f + adjust_bat_u, 5.0f / 12.0f + adjust_bat_u,
+		3.0f / 12.0f + adjust_bat_u, 4.0f / 12.0f + adjust_bat_u, 5.0f / 12.0f + adjust_bat_u };
+	vector<float> enemy_v = { 5.0f / 8.0f + adjust_bat_v, 5.0f / 8.0f + adjust_bat_v, 5.0f / 8.0f + adjust_bat_v,
+		6.0f / 8.0f + adjust_bat_v, 6.0f / 8.0f + adjust_bat_v, 6.0f / 8.0f + adjust_bat_v, };
+	SheetSprite enemyTexture = SheetSprite(spriteSheet3, enemy_u, enemy_v, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 6.0f / 128.0f);
+	for (int i = 0; i < NUM_DUMBMOBS; i++) {
+		DumbMob* enemy = new DumbMob();
 		enemy->sprite = enemyTexture;
-		float scale = randomFloat(0.8f, 1.2f);
-		enemy->scale_x = scale;
-		enemy->scale_y = scale;
+		enemy->dead = true;
 		enemy->grav_y = -9.8f;
-		enemy->position = checkForValidSpawnLocation(1);
-		enemy->velocity.x = randomFloat(8.0f, 11.0f);
-		enemy->jumpTimeGap = randomFloat(1.0f, 3.0f);
+		enemy->speed = 0.7f;
+		enemy->entityID = DUMB_MOB;
 		//enemy->velocity = Vector(9.0f, 0.0f);
+		dumbMobs.push_back(enemy);
 		enemies.push_back(enemy);
 	}
 
+	for (int i = 0; i < NUM_BATS; i++) {
+		Bat* enemy = new Bat();
+		enemy->sprite = enemyTexture;
+		enemy->dead = true;
+		enemy->grav_y = -3.75f;
+		enemy->speed = 0.5f;
+		enemy->entityID = BAT;
+		bats.push_back(enemy);
+		enemies.push_back(enemy);
+	}
 
-	//vector<float> u2 = { 6.0f / 12.0f + adjust_u };
+	//vector<float> u2 = { 6.0f / 12.0f + adrenderjust_u };
 	//vector<float> v2 = { 5.0f / 8.0f + adjust_v };
 	//BulletShooterTest = ParticleEmitter(0.5f, 10, SheetSprite(spriteSheet3, u, v, 16.0f / 192.0f - 2 * adjust_u, 16.0f / 128.0f - 2 * adjust_v));
 	//BulletShooterTest.position = Vector(player->position.x, player->position.y);
@@ -1006,6 +1254,9 @@ void Game::buildLevel() {
 		for (int j = 0; j < mapWidth; j++){
 			if (randomFloat(0.0f, 1.0f) < CHANCE_TO_START_ALIVE) {
 				cellmap[i][j] = false;
+			}
+			else {
+				cellmap[i][j] = true;
 			}
 		}
 	}

@@ -51,7 +51,7 @@ public:
 	//float v;
 	float width;
 	float height;
-	Matrix matrix;
+	//Matrix matrix;
 
 	SheetSprite() {};
 	SheetSprite(GLuint textureID, vector<float> u, vector<float> v, float width, float height)

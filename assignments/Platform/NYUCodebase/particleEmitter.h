@@ -164,27 +164,27 @@ void ParticleEmitter::FixedUpdate() {
 	//	}
 	//}
 	//if (shootingParticles) {
-		for (size_t i = 0; i < particles.size(); i++) {
-			//particles[i].velocity.x += gravity.x;
-			//particles[i].velocity.y += gravity.y;
-			particles[i].velocity = particles[i].velocity + gravity;
-			particles[i].position = particles[i].position + particles[i].velocity * FIXED_TIMESTEP;
-			particles[i].lifetime += FIXED_TIMESTEP;
-		
+	for (size_t i = 0; i < particles.size(); i++) {
+		//particles[i].velocity.x += gravity.x;
+		//particles[i].velocity.y += gravity.y;
+		particles[i].velocity = particles[i].velocity + gravity;
+		particles[i].position = particles[i].position + particles[i].velocity * FIXED_TIMESTEP;
+		particles[i].lifetime += FIXED_TIMESTEP;
 
-			//particles[i].position.x += particles[i].velocity.x;
-			//particles[i].position.y += particles[i].velocity.y;
 
-			//particles[i].lifetime += elapsed;
-			if (particles[i].lifetime > maxLifetime) {
-				particles[i].velocity = velocity + Vector(randomFloat(-velocityDeviation.x, velocityDeviation.x),
-														  randomFloat(-velocityDeviation.y, velocityDeviation.y));
-				particles[i].position = position;
-				particles[i].lifetime = 0.0f;
-				particles[i].active = active;
-			}
-			//particles[i].active = active;
+		//particles[i].position.x += particles[i].velocity.x;
+		//particles[i].position.y += particles[i].velocity.y;
+
+		//particles[i].lifetime += elapsed;
+		if (particles[i].lifetime > maxLifetime) {
+			particles[i].velocity = velocity + Vector(randomFloat(-velocityDeviation.x, velocityDeviation.x),
+				randomFloat(-velocityDeviation.y, velocityDeviation.y));
+			particles[i].position = position;
+			particles[i].lifetime = 0.0f;
+			particles[i].active = active;
 		}
+		//particles[i].active = active;
+	}
 	//}
 }
 

@@ -76,7 +76,10 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="bat.h" />
+    <ClInclude Include="dumbMob.h" />
     <ClInclude Include="entity.h" />
+    <ClInclude Include="explosion.h" />
     <ClInclude Include="game.h" />
     <ClInclude Include="loader.h" />
     <ClInclude Include="matrix.h" />

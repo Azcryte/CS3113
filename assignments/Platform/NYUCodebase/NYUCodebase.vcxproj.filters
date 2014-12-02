@@ -41,5 +41,14 @@
     <ClInclude Include="particleEmitter.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="dumbMob.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="bat.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="explosion.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
