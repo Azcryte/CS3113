@@ -39,11 +39,11 @@
 
 //#define MAX_ENEMIES 5
 #define NUM_DUMBMOBS 10
-#define DUMBMOB_SPAWN_TIMER 2.5f
+#define DUMBMOB_SPAWN_TIMER 2.0f
 #define NUM_BATS 5
-#define BAT_SPAWN_TIMER 3.5f
+#define BAT_SPAWN_TIMER 3.0f
 #define NUM_STALAGTITES 7
-#define STALAGTITE_SPAWN_TIMER 1.5f
+#define STALAGTITE_SPAWN_TIMER 1.0f
 
 #define ENEMY_TYPES 3
 #define WEAPON_TYPES 2
@@ -621,51 +621,98 @@ void Game::RenderLevel() {
 	vector<float> vertexData;
 	vector<float> textureCoordData;
 
-	int grid_x, grid_y;
-	worldToTileCoordinates(player->position.x, player->position.y, &grid_x, &grid_y);
+	int player_grid_x, player_grid_y;
+	worldToTileCoordinates(player->position.x, player->position.y, &player_grid_x, &player_grid_y);
+	int altar_grid_x, altar_grid_y;
+	worldToTileCoordinates(altarSpawn_x, altarSpawn_y, &altar_grid_x, &altar_grid_y);
+
 
 	int numVertices = 0;
 	
-	int distance = 12;
-	if (state == CUTSCENE || bossFight) { distance = 22; }
-	for (int y = 0; y < mapHeight; y++) {
-		for (int x = 0; x < mapWidth; x++) {
-			if (abs(x - grid_x) < distance &&
-				abs(y - grid_y) < distance
-				//true
-				)
-			{
-				float adjust_u = 1.5f / 468.0f;
-				float adjust_v = 1.5f / 180.0f;
-				float u = (float)(((int)levelData[y][x]) % SPRITE_COUNT_X_TER) / (float)SPRITE_COUNT_X_TER;
-				float v = (float)(((int)levelData[y][x]) / SPRITE_COUNT_X_TER) / (float)SPRITE_COUNT_Y_TER;
-				float spriteWidth = (1.0f / (float)SPRITE_COUNT_X_TER) - (2 * adjust_u);
-				float spriteHeight = (1.0f / (float)SPRITE_COUNT_Y_TER) - (2 * adjust_v);
-				//vertexData.insert(vertexData.end(), {
-				//	TILE_SIZE* x - adjust_u, -TILE_SIZE* y + adjust_v,
-				//	TILE_SIZE* x - adjust_u, (-TILE_SIZE* y) - TILE_SIZE - adjust_v,
-				//	(TILE_SIZE* x) + TILE_SIZE + adjust_u, (-TILE_SIZE* y) - TILE_SIZE - adjust_v,
-				//	(TILE_SIZE* x) + TILE_SIZE + adjust_u, -TILE_SIZE* y + adjust_v
-				//});
-				//textureCoordData.insert(textureCoordData.end(), { u + adjust_u, v + adjust_v,
-				//	u + adjust_u, v + spriteHeight - adjust_v,
-				//	u + spriteWidth - adjust_u, v + spriteHeight - adjust_v,
-				//	u + spriteWidth - adjust_u, v + adjust_v
-				//});
-				vertexData.insert(vertexData.end(), {
-					TILE_SIZE* x, -TILE_SIZE* y,
-					TILE_SIZE* x, (-TILE_SIZE* y) - TILE_SIZE,
-					(TILE_SIZE* x) + TILE_SIZE, (-TILE_SIZE* y) - TILE_SIZE,
-					(TILE_SIZE* x) + TILE_SIZE, -TILE_SIZE* y
-				});
-				textureCoordData.insert(textureCoordData.end(), { 
-					u + adjust_u, v + adjust_v,
-					u + adjust_u, v + spriteHeight - adjust_v,
-					u + spriteWidth - adjust_u, v + spriteHeight - adjust_v,
-					u + spriteWidth - adjust_u, v + adjust_v
-				});
+	if (state == CUTSCENE || bossFight) {
+		for (int y = 0; y < mapHeight; y++) {
+			for (int x = 0; x < mapWidth; x++) {
+				if (abs(x - altar_grid_x) < 11 &&
+					y < altar_grid_y + 2 &&
+					y > altar_grid_y - 20
+					//true
+					)
+				{
+					float adjust_u = 1.5f / 468.0f;
+					float adjust_v = 1.5f / 180.0f;
+					float u = (float)(((int)levelData[y][x]) % SPRITE_COUNT_X_TER) / (float)SPRITE_COUNT_X_TER;
+					float v = (float)(((int)levelData[y][x]) / SPRITE_COUNT_X_TER) / (float)SPRITE_COUNT_Y_TER;
+					float spriteWidth = (1.0f / (float)SPRITE_COUNT_X_TER) - (2 * adjust_u);
+					float spriteHeight = (1.0f / (float)SPRITE_COUNT_Y_TER) - (2 * adjust_v);
+					//vertexData.insert(vertexData.end(), {
+					//	TILE_SIZE* x - adjust_u, -TILE_SIZE* y + adjust_v,
+					//	TILE_SIZE* x - adjust_u, (-TILE_SIZE* y) - TILE_SIZE - adjust_v,
+					//	(TILE_SIZE* x) + TILE_SIZE + adjust_u, (-TILE_SIZE* y) - TILE_SIZE - adjust_v,
+					//	(TILE_SIZE* x) + TILE_SIZE + adjust_u, -TILE_SIZE* y + adjust_v
+					//});
+					//textureCoordData.insert(textureCoordData.end(), { u + adjust_u, v + adjust_v,
+					//	u + adjust_u, v + spriteHeight - adjust_v,
+					//	u + spriteWidth - adjust_u, v + spriteHeight - adjust_v,
+					//	u + spriteWidth - adjust_u, v + adjust_v
+					//});
+					vertexData.insert(vertexData.end(), {
+						TILE_SIZE* x, -TILE_SIZE* y,
+						TILE_SIZE* x, (-TILE_SIZE* y) - TILE_SIZE,
+						(TILE_SIZE* x) + TILE_SIZE, (-TILE_SIZE* y) - TILE_SIZE,
+						(TILE_SIZE* x) + TILE_SIZE, -TILE_SIZE* y
+					});
+					textureCoordData.insert(textureCoordData.end(), {
+						u + adjust_u, v + adjust_v,
+						u + adjust_u, v + spriteHeight - adjust_v,
+						u + spriteWidth - adjust_u, v + spriteHeight - adjust_v,
+						u + spriteWidth - adjust_u, v + adjust_v
+					});
 
-				numVertices += 4;
+					numVertices += 4;
+				}
+			}
+		}
+	}
+	else {
+		for (int y = 0; y < mapHeight; y++) {
+			for (int x = 0; x < mapWidth; x++) {
+				if (abs(x - player_grid_x) < 12 &&
+					abs(y - player_grid_y) < 12
+					//true
+					)
+				{
+					float adjust_u = 1.5f / 468.0f;
+					float adjust_v = 1.5f / 180.0f;
+					float u = (float)(((int)levelData[y][x]) % SPRITE_COUNT_X_TER) / (float)SPRITE_COUNT_X_TER;
+					float v = (float)(((int)levelData[y][x]) / SPRITE_COUNT_X_TER) / (float)SPRITE_COUNT_Y_TER;
+					float spriteWidth = (1.0f / (float)SPRITE_COUNT_X_TER) - (2 * adjust_u);
+					float spriteHeight = (1.0f / (float)SPRITE_COUNT_Y_TER) - (2 * adjust_v);
+					//vertexData.insert(vertexData.end(), {
+					//	TILE_SIZE* x - adjust_u, -TILE_SIZE* y + adjust_v,
+					//	TILE_SIZE* x - adjust_u, (-TILE_SIZE* y) - TILE_SIZE - adjust_v,
+					//	(TILE_SIZE* x) + TILE_SIZE + adjust_u, (-TILE_SIZE* y) - TILE_SIZE - adjust_v,
+					//	(TILE_SIZE* x) + TILE_SIZE + adjust_u, -TILE_SIZE* y + adjust_v
+					//});
+					//textureCoordData.insert(textureCoordData.end(), { u + adjust_u, v + adjust_v,
+					//	u + adjust_u, v + spriteHeight - adjust_v,
+					//	u + spriteWidth - adjust_u, v + spriteHeight - adjust_v,
+					//	u + spriteWidth - adjust_u, v + adjust_v
+					//});
+					vertexData.insert(vertexData.end(), {
+						TILE_SIZE* x, -TILE_SIZE* y,
+						TILE_SIZE* x, (-TILE_SIZE* y) - TILE_SIZE,
+						(TILE_SIZE* x) + TILE_SIZE, (-TILE_SIZE* y) - TILE_SIZE,
+						(TILE_SIZE* x) + TILE_SIZE, -TILE_SIZE* y
+					});
+					textureCoordData.insert(textureCoordData.end(), {
+						u + adjust_u, v + adjust_v,
+						u + adjust_u, v + spriteHeight - adjust_v,
+						u + spriteWidth - adjust_u, v + spriteHeight - adjust_v,
+						u + spriteWidth - adjust_u, v + adjust_v
+					});
+
+					numVertices += 4;
+				}
 			}
 		}
 	}
@@ -779,7 +826,7 @@ void Game::RenderGame() {
 		//screenShake.m[3][0] = screenShake_x;a
 		glTranslatef(sin(screenShakeValue * 70.0f) * 0.02f, sin(screenShakeValue * 50.0f) * 0.02f, 0.0f);
 	}
-	if (screenShake) {
+	if (screenShake || state == CUTSCENE) {
 		glTranslatef(sin(screenShakeValue * 70.0f) * 0.01f, sin(screenShakeValue * 50.0f) * 0.01f, 0.0f);
 	}
 	//glUniformMatrix4fv(modelviewMatrixUniform, 1, GL_FALSE, matrix.ml);
@@ -1609,25 +1656,76 @@ void Game::FixedUpdate() {
 				}
 
 				float rand = randomFloat(0.0f, 1.0f);
-				if (bossOne->cooldown > 3.0f) {
-					if (rand < 0.2) {
-						for (size_t i = 0; i < 3; i++) {
-							bats[i]->dead = false;
-							bats[i]->currentHealth = bats[i]->maxHealth;
-							bats[i]->position = bossOne->position;
-							bats[i]->jumpTimeGap = randomFloat(2.0f, 3.0f);
+				if (bossOne->currentHealth > 200) {
+					if (bossOne->cooldown > 3.0f) {
+						if (rand < 0.3) {
+							for (size_t i = 0; i < randomInt(2, 3); i++) {
+								bats[i]->dead = false;
+								bats[i]->currentHealth = bats[i]->maxHealth;
+								bats[i]->position = bossOne->position;
+								bats[i]->jumpTimeGap = randomFloat(2.0f, 3.0f);
+							}
+							bossOne->cooldown = 0.0f;
 						}
-						bossOne->cooldown = 0.0f;
+						else {
+							for (size_t i = 0; i < randomInt(3, 5); i++) {
+								enemyStuff[i]->position = bossOne->position;
+								enemyStuff[i]->dead = false;
+								enemyStuff[i]->velocity = Vector(randomFloat(-2.0f, 2.0f), randomFloat(1.0f, 4.0f));
+								enemyStuff[i]->speed = randomFloat(0.8f, 1.2f);
+								enemyStuff[i]->entityID = -21;
+							}
+							bossOne->cooldown = 0.0f;
+						}
 					}
-					else {
-						for (size_t i = 0; i < 5; i++) {
-							enemyStuff[i]->position = bossOne->position;
-							enemyStuff[i]->dead = false;
-							enemyStuff[i]->velocity = Vector(randomFloat(-2.0f, 2.0f), randomFloat(1.0f, 5.0f));
-							enemyStuff[i]->speed = randomFloat(0.8f, 1.2f);
-							enemyStuff[i]->entityID = -21;
+				}
+				else if (bossOne->currentHealth > 100) {
+					if (bossOne->cooldown > 2.0f) {
+						if (rand < 0.2) {
+							for (size_t i = 0; i < 4; i++) {
+								bats[i]->dead = false;
+								bats[i]->maxHealth = 15;
+								bats[i]->currentHealth = bats[i]->maxHealth;
+								bats[i]->position = bossOne->position;
+								bats[i]->jumpTimeGap = randomFloat(1.5f, 2.5f);
+							}
+							bossOne->cooldown = 0.0f;
 						}
-						bossOne->cooldown = 0.0f;
+						else {
+							for (size_t i = 0; i < randomInt(5, 7); i++) {
+								enemyStuff[i]->position = bossOne->position;
+								enemyStuff[i]->dead = false;
+								enemyStuff[i]->velocity = Vector(randomFloat(-3.0f, 3.0f), randomFloat(3.0f, 6.0f));
+								enemyStuff[i]->speed = randomFloat(0.8f, 1.2f);
+								enemyStuff[i]->entityID = -21;
+							}
+							bossOne->cooldown = 0.0f;
+						}
+					}
+				}
+				else {
+					if (bossOne->cooldown > 1.3f) {
+						if (rand < 0.2) {
+							for (size_t i = 0; i < 5; i++) {
+								bats[i]->dead = false;
+								bats[i]->maxHealth = 20;
+								bats[i]->currentHealth = bats[i]->maxHealth;
+								bats[i]->position = bossOne->position;
+								bats[i]->jumpTimeGap = randomFloat(0.75f, 1.5f);
+								bats[i]->speed = 0.65f;
+							}
+							bossOne->cooldown = 0.0f;
+						}
+						else {
+							for (size_t i = 0; i < randomInt(7, 9); i++) {
+								enemyStuff[i]->position = bossOne->position;
+								enemyStuff[i]->dead = false;
+								enemyStuff[i]->velocity = Vector(randomFloat(-3.0f, 3.0f), randomFloat(5.0f, 8.0f));
+								enemyStuff[i]->speed = randomFloat(0.8f, 1.2f);
+								enemyStuff[i]->entityID = -21;
+							}
+							bossOne->cooldown = 0.0f;
+						}
 					}
 				}
 
@@ -1983,7 +2081,7 @@ void Game::FixedUpdate() {
 		worldToTileCoordinates(altarSpawn_x, altarSpawn_y, &altar_x, &altar_y);
 		for (int i = 0; i < 19; i++) {
 			for (int j = 0; j < 19; j++) {
-				if (cutsceneTime > 5.7f + (float)(i)* 0.2f) {
+				if (cutsceneTime > 5.7f + (float)(i)* 0.1f) {
 					levelData[altar_y - i][altar_x - 9 + j] = 61;
 
 				}
@@ -2227,8 +2325,8 @@ void Game::reset() {
 	bossOne->sprite = SheetSprite(bossOneTexture, bossOne_u, bossOne_v, 1.0f / 2.0f, 1.0f / 2.0f);
 	bossOne->healthBar = SheetSprite(healthBarTexture, healthBar_u, healthBar_v, 1.0f, 1.0f / 20.0f);
 	bossOne->healthBar.frame = 19;
-	bossOne->maxHealth = 200;
-	bossOne->currentHealth = 200;
+	bossOne->maxHealth = 300;
+	bossOne->currentHealth = 300;
 	bossOne->dead = true;
 	bossOne->grav_y = -3.75f;
 	bossOne->speed = 0.5f;
@@ -2241,7 +2339,7 @@ void Game::reset() {
 	bossOne->entityID = 10;
 	enemies.push_back(bossOne);
 
-	for (size_t i = 0; i < 5; i++) {
+	for (size_t i = 0; i < 10; i++) {
 		Entity* temp = new Entity();
 		vector<float> u = { 0.0f };
 		vector<float> v = { 0.0f };
