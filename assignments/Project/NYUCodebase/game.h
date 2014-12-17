@@ -2088,8 +2088,6 @@ void Game::FixedUpdate() {
 			}
 		}
 
-
-		cutsceneTime += FIXED_TIMESTEP;
 		if (cutsceneTime > 10.0f) {
 			bossFight = true;
 			bossOne->dead = false;
@@ -2114,6 +2112,8 @@ void Game::FixedUpdate() {
 			cutsceneTime = 0.0f;
 			state = GAME_PLAY;
 		}
+		cutsceneTime += FIXED_TIMESTEP;
+		screenShakeValue += FIXED_TIMESTEP;
 		break;
 	}
 
